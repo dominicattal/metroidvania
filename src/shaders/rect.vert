@@ -7,6 +7,7 @@ layout (location = 3) in float inRotation;
 
 layout (std140) uniform Window {
     vec2 resolution;
+    float time;
 } window;
 
 out vec2 TexCoord;

@@ -293,10 +293,10 @@ static void create_shader_programs(void)
 
 static void create_window_ubo(void)
 {
-    GLfloat window_size[2] = {RESOLUTION_X, RESOLUTION_Y};
+    GLfloat window_size[3] = {RESOLUTION_X, RESOLUTION_Y, 0.0f};
     glBindBuffer(GL_UNIFORM_BUFFER, render_ctx.ubos[UBO_WINDOW]);
     glBindBufferBase(GL_UNIFORM_BUFFER, UBO_INDEX_WINDOW, render_ctx.ubos[UBO_WINDOW]);
-    glBufferData(GL_UNIFORM_BUFFER, 2 * sizeof(GLfloat), window_size, GL_STATIC_DRAW);
+    glBufferData(GL_UNIFORM_BUFFER, 3 * sizeof(GLfloat), window_size, GL_STATIC_DRAW);
 }
 
 static void create_vertex_arrays(void)
@@ -505,10 +505,14 @@ void render_entity_hitboxes(void)
 
 void render()
 {
+    glBindBuffer(GL_UNIFORM_BUFFER, render_ctx.ubos[UBO_WINDOW]);
+    f32 time = global_ctx.time;
+    glBufferSubData(GL_UNIFORM_BUFFER, 2 * sizeof(GLfloat), sizeof(GLfloat), &time);
+
     glBindFramebuffer(GL_FRAMEBUFFER, render_ctx.fbo);
     glViewport(0, 0, RESOLUTION_X, RESOLUTION_Y);
     glClear(GL_COLOR_BUFFER_BIT);
-    glClearColor(0.8f, 0.8f, 0.8f, 1.0f);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
     render_entities();
     if (global_ctx.draw_hitboxes)
@@ -517,7 +521,7 @@ void render()
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glViewport(0, 0, global_ctx.window_width, global_ctx.window_height);
     glClear(GL_COLOR_BUFFER_BIT);
-    glClearColor(0.8f, 0.8f, 0.8f, 1.0f);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glUseProgram(render_ctx.programs[PROGRAM_SCREEN]);
     glBindVertexArray(render_ctx.vaos[VAO_SCREEN]);
     glBindTexture(GL_TEXTURE_2D, render_ctx.textures[TEXTURE_FBO]);

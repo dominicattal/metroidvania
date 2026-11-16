@@ -49,26 +49,26 @@ void game_update(void)
 {
     Pool* pool = &global_ctx.projectile_pool;
 
-    if (global_ctx.time > game_ctx.next_create_time)
-    {
-        for (i32 i = 0; i < 10; i++)
-        {
-            f32 x = randf_range(0.0f, RESOLUTION_X);
-            i32 id = pool_alloc(pool);
-            Entity* entity = pool_ref(pool, id);
-            entity->position = vec2_create(x, RESOLUTION_Y);
-            entity->velocity = vec2_create(0.0f, -200.0f);
-            flag_set(entity, FLAG_EXPIRE);
-            entity->size = vec2_create(20.0f, 20.0f);
-            entity->expire_time = global_ctx.time + 5.0f;
-            entity->hitbox_radius = 5.0f;
-        }
-        game_ctx.next_create_time = global_ctx.time + 0.1f;
-    }
+    //if (global_ctx.time > game_ctx.next_create_time)
+    //{
+    //    for (i32 i = 0; i < 10; i++)
+    //    {
+    //        f32 x = randf_range(0.0f, RESOLUTION_X);
+    //        i32 id = pool_alloc(pool);
+    //        Entity* entity = pool_ref(pool, id);
+    //        entity->position = vec2_create(x, RESOLUTION_Y);
+    //        entity->velocity = vec2_create(0.0f, -200.0f);
+    //        flag_set(entity, FLAG_EXPIRE);
+    //        entity->size = vec2_create(20.0f, 20.0f);
+    //        entity->expire_time = global_ctx.time + 5.0f;
+    //        entity->hitbox_radius = 5.0f;
+    //    }
+    //    game_ctx.next_create_time = global_ctx.time + 0.1f;
+    //}
 
     Entity* player = &global_ctx.player;
 
-    f32 speed = 200.0f;
+    f32 speed = 400.0f;
     player->velocity = VEC2_ZERO;
 
     if (key_pressed(GLFW_KEY_SPACE))
