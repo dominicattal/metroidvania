@@ -15,8 +15,8 @@ out vec2 TexCoord;
 void main()
 {
     TexCoord = inPosition;
-    float x = inSize.x * (inPosition.x - 0.5f) * cos(inRotation) - inSize.y * (inPosition.y - 0.5f) * sin(inRotation);
-    float y = inSize.x * (inPosition.x - 0.5f) * sin(inRotation) + inSize.y * (inPosition.y - 0.5f) * cos(inRotation);
+    float x = inSize.x * inPosition.x * cos(inRotation) - inSize.y * inPosition.y * sin(inRotation);
+    float y = inSize.x * inPosition.x * sin(inRotation) + inSize.y * inPosition.y * cos(inRotation);
     gl_Position = vec4(
             ((inOffset.x + x) / window.width  - 0.5f) * 2.0f,
             ((inOffset.y + y) / window.height - 0.5f) * 2.0f,

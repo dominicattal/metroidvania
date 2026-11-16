@@ -9,8 +9,8 @@
 #include FT_FREETYPE_H
 #include "util.h"
 
-#define WINDOW_WIDTH 640
-#define WINDOW_HEIGHT 480
+#define RESOLUTION_X 1920
+#define RESOLUTION_Y 1080
 #define FONT_SIZE 36
 #define TEXTURE_WIDTH 1024
 #define TEXTURE_SIZE (TEXTURE_WIDTH * TEXTURE_WIDTH)
@@ -38,6 +38,10 @@ typedef struct {
 
 struct {
 
+    GLFWwindow* window;
+    i32 window_width;
+    i32 window_height;
+
     FT_Library library;
     FT_Face face;
 
@@ -55,6 +59,14 @@ struct {
     GLuint rect_vao;
     GLuint rect_vbo;
     GLuint rect_instance_vbo;
+
+    GLuint screen_shader_program;
+    GLuint screen_vao;
+    GLuint screen_vbo;
+
+    GLuint rbo;
+    GLuint fbo;
+    GLuint fbo_texture;
 
     Rect rects[NUM_OBJECTS];
     i32 num_rects;
@@ -223,6 +235,7 @@ void render_text_ex(char* text, f32 x, f32 y, f32 scale, vec4 color)
     glUseProgram(ctx.text_shader_program);
     glUniform4f(glGetUniformLocation(ctx.text_shader_program, "color"), color.x, color.y, color.z, color.w);
     glBindVertexArray(ctx.text_vao);
+    glBindTexture(GL_TEXTURE_2D, ctx.glyph_bitmap_texture);
     glBindBuffer(GL_ARRAY_BUFFER, ctx.text_vbo);
     glBufferData(GL_ARRAY_BUFFER, n * 6 * 4 * sizeof(GLfloat), vertices, GL_STATIC_DRAW);
     glDrawArrays(GL_TRIANGLES, 0, n * 6);
@@ -260,11 +273,23 @@ void create_shader_programs()
     glDeleteShader(vert);
     glDeleteShader(frag);
     glUniformBlockBinding(ctx.rect_shader_program, glGetUniformBlockIndex(ctx.text_shader_program, "Window"), UBO_INDEX_WINDOW);
+
+    ctx.screen_shader_program = glCreateProgram();
+    vert = compile(GL_VERTEX_SHADER, "assets/shaders/screen.vert");
+    frag = compile(GL_FRAGMENT_SHADER, "assets/shaders/screen.frag");
+    glAttachShader(ctx.screen_shader_program, vert);
+    glAttachShader(ctx.screen_shader_program, frag);
+    link(ctx.screen_shader_program);
+    glDetachShader(ctx.screen_shader_program, vert);
+    glDetachShader(ctx.screen_shader_program, frag);
+    glDeleteShader(vert);
+    glDeleteShader(frag);
+    glUniform1i(glGetUniformLocation(ctx.screen_shader_program, "screenTex"), ctx.fbo_texture);
 }
 
 void create_window_ubo()
 {
-    GLfloat window_size[2] = {WINDOW_WIDTH, WINDOW_HEIGHT};
+    GLfloat window_size[2] = {ctx.window_width, ctx.window_height};
     glGenBuffers(1, &ctx.window_ubo);
     glBindBuffer(GL_UNIFORM_BUFFER, ctx.window_ubo);
     glBindBufferBase(GL_UNIFORM_BUFFER, UBO_INDEX_WINDOW, ctx.window_ubo);
@@ -283,10 +308,10 @@ void create_vertex_arrays()
     glEnableVertexAttribArray(1);
 
     GLfloat rect_instance_data[] = {
-        0.0f, 0.0f,
-        0.0f, 1.0f,
-        1.0f, 1.0f,
-        1.0f, 0.0f,
+        -0.5f, -0.5f,
+        -0.5f,  0.5f,
+         0.5f,  0.5f,
+         0.5f, -0.5f,
     };
     glCreateVertexArrays(1, &ctx.rect_vao);
     glGenBuffers(1, &ctx.rect_vbo);
@@ -296,7 +321,6 @@ void create_vertex_arrays()
     glBufferData(GL_ARRAY_BUFFER, sizeof(rect_instance_data), rect_instance_data, GL_STATIC_DRAW);
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), (void*)0);
     glEnableVertexAttribArray(0);
-
     glBindBuffer(GL_ARRAY_BUFFER, ctx.rect_vbo);
     glBufferData(GL_ARRAY_BUFFER, NUM_OBJECTS * 5 * sizeof(GLfloat), NULL, GL_STATIC_DRAW);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (void*)0);
@@ -308,6 +332,20 @@ void create_vertex_arrays()
     glVertexAttribDivisor(1, 1);
     glVertexAttribDivisor(2, 1);
     glVertexAttribDivisor(3, 1);
+
+    GLfloat screen_data[] = {
+        -1.0f, -1.0f,
+        -1.0f,  1.0f,
+         1.0f,  1.0f,
+         1.0f, -1.0f,
+    };
+    glCreateVertexArrays(1, &ctx.screen_vao);
+    glGenBuffers(1, &ctx.screen_vbo);
+    glBindVertexArray(ctx.screen_vao);
+    glBindBuffer(GL_ARRAY_BUFFER, ctx.screen_vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(screen_data), screen_data, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), (void*)0);
+    glEnableVertexAttribArray(0);
 }
 
 void framebuffer_size_callback(GLFWwindow* window, i32 width, i32 height)
@@ -320,6 +358,25 @@ void framebuffer_size_callback(GLFWwindow* window, i32 width, i32 height)
 
 void key_callback(GLFWwindow* window, i32 key, i32 scancode, i32 action, i32 mods)
 {
+    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+        glfwSetWindowShouldClose(window, true);
+}
+
+void create_framebuffer()
+{
+    glGenRenderbuffers(1, &ctx.rbo);
+    glBindRenderbuffer(GL_RENDERBUFFER, ctx.rbo);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, RESOLUTION_X, RESOLUTION_Y);
+
+    glGenFramebuffers(1, &ctx.fbo);
+    glGenTextures(1, &ctx.fbo_texture);
+    glBindFramebuffer(GL_FRAMEBUFFER, ctx.fbo);
+    glBindTexture(GL_TEXTURE_2D, ctx.fbo_texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, RESOLUTION_X, RESOLUTION_Y, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, ctx.fbo_texture, 0);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, ctx.rbo);
 }
 
 void render_rects()
@@ -351,18 +408,32 @@ int main()
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_SAMPLES, 4);
 
-    GLFWwindow* window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Hello World", NULL, NULL);
-    glfwMakeContextCurrent(window);
-    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
-    glfwSetKeyCallback(window, key_callback);
+    GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+    const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+ 
+    glfwWindowHint(GLFW_RED_BITS, mode->redBits);
+    glfwWindowHint(GLFW_GREEN_BITS, mode->greenBits);
+    glfwWindowHint(GLFW_BLUE_BITS, mode->blueBits);
+    glfwWindowHint(GLFW_REFRESH_RATE, mode->refreshRate);
+
+    //ctx.window_width = mode->width;
+    //ctx.window_height = mode->height;
+    //ctx.window = glfwCreateWindow(ctx.window_width, ctx.window_height, "El Game", monitor, NULL);
+    ctx.window_width = 640;
+    ctx.window_height = 480;
+    ctx.window = glfwCreateWindow(ctx.window_width, ctx.window_height, "El Game", NULL, NULL);
+    glfwMakeContextCurrent(ctx.window);
+    glfwSetFramebufferSizeCallback(ctx.window, framebuffer_size_callback);
+    glfwSetKeyCallback(ctx.window, key_callback);
     gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
-    glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+    glViewport(0, 0, ctx.window_width, ctx.window_height);
     glfwSwapInterval(1);
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);  
 
     initialize_font();
+    create_framebuffer();
     create_window_ubo();
     create_shader_programs();
     create_vertex_arrays();
@@ -379,8 +450,9 @@ int main()
     f64 timestep = 1.0 / 60.0;
     f64 time = 0;
 
-    while (!glfwWindowShouldClose(window))
+    while (!glfwWindowShouldClose(ctx.window))
     {
+        glBindFramebuffer(GL_FRAMEBUFFER, ctx.fbo);
         glClear(GL_COLOR_BUFFER_BIT);
         glClearColor(0.0f, 0.0f, 1.0f, 1.0f);
 
@@ -389,11 +461,17 @@ int main()
         f64 v = sin(time);
         render_text_ex("Hello, World!", 40, 40, 0.8 + 0.4 * v, (vec4){1.0f, 0.0f, 1.0f, 1.0f});
 
-        ctx.rects[1].rotation = time;
-        ctx.rects[2].rotation = sin(time);
         render_rects();
 
-        glfwSwapBuffers(window);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glClear(GL_COLOR_BUFFER_BIT);
+        glClearColor(0.0f, 0.0f, 1.0f, 1.0f);
+        glUseProgram(ctx.screen_shader_program);
+        glBindVertexArray(ctx.screen_vao);
+        glBindTexture(GL_TEXTURE_2D, ctx.fbo_texture);
+        glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+        glfwSwapBuffers(ctx.window);
         glfwPollEvents();
 
         time += timestep;
