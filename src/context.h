@@ -10,11 +10,16 @@
 
 #define RESOLUTION_X 1920
 #define RESOLUTION_Y 1080
-#define NUM_OBJECTS 10000
+#define MAX_NUM_PROJECTILES 10000
+#define MAX_NUM_ENEMIES 100
+
+// add 1 for the player
+#define MAX_NUM_ENTITIES (MAX_NUM_PROJECTILES + MAX_NUM_ENEMIES + 1)
 
 typedef enum {
     FLAG_RECT_HITBOX = 1 << 0,
-    FLAG_EXPIRE = 1 << 1,
+    FLAG_EXPIRE      = 1 << 1,
+    FLAG_DELETE      = 1 << 2,
 } EntityFlag;
 
 typedef struct {
@@ -22,19 +27,20 @@ typedef struct {
     vec2 velocity;
     vec2 size;
     f64 expire_time;
-    f32 rotation;
+    f64 rotation;
     u32 flags;
     union {
-        f32 hitbox_radius;
+        f64 hitbox_radius;
         vec2 hitbox_size;
     };
 } Entity;
 
 typedef struct {
-    Entity entities[NUM_OBJECTS+1];
-    i32 dense[NUM_OBJECTS+1];
-    i32 sparse[NUM_OBJECTS+1];
+    Entity* entities;
+    i32* dense;
+    i32* sparse;
     i32 size;
+    i32 capacity;
 } Pool;
 
 typedef struct {
@@ -42,10 +48,14 @@ typedef struct {
     i32 window_width;
     i32 window_height;
 
-    Pool pool;
+    Pool projectile_pool;
+
+    Entity player;
 
     f64 time;
     f64 dt;
+
+    bool draw_hitboxes;
 
 } GlobalContext;
 
@@ -53,10 +63,10 @@ extern GlobalContext global_ctx;
 
 bool key_pressed(i32 key);
 
-void    pool_init(void);
-i32     pool_alloc(void);
-Entity* pool_ref(i32 id);
-void    pool_free(i32 id);
+void    pool_init(Pool* pool, i32 capacity);
+i32     pool_alloc(Pool* pool);
+Entity* pool_ref(Pool* pool, i32 id);
+void    pool_free(Pool* pool, i32 id);
 
 void render_init(void);
 void render(void);

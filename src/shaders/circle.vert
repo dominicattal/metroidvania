@@ -13,5 +13,5 @@ out vec2 TexCoord;
 void main()
 {
     TexCoord = inPosition;
-    gl_Position = vec4(((inOffset + inPosition * inRadius) / window.resolution - 0.5f) * 2.0f, 0.0f, 1.0f);
+    gl_Position = vec4(((inOffset + 2 * inPosition * inRadius) / window.resolution - 0.5f) * 2.0f, 0.0f, 1.0f);
 };

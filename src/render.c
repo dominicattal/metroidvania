@@ -66,8 +66,9 @@ typedef struct {
     GLuint ubos[NUM_UBOS];
     GLuint textures[NUM_TEXTURES];
 
-    GLfloat rect_vertex_buffer[NUM_OBJECTS * RECT_VERTEX_LENGTH];
-    GLfloat circle_vertex_buffer[NUM_OBJECTS * CIRCLE_VERTEX_LENGTH];
+    // max number of objects in pool + player
+    GLfloat rect_vertex_buffer[MAX_NUM_ENTITIES * RECT_VERTEX_LENGTH];
+    GLfloat circle_vertex_buffer[MAX_NUM_ENTITIES * CIRCLE_VERTEX_LENGTH];
 
     GLuint fbo;
     GLuint rbo;
@@ -321,7 +322,7 @@ static void create_vertex_arrays(void)
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), (void*)0);
     glEnableVertexAttribArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, render_ctx.vbos[VBO_RECT]);
-    glBufferData(GL_ARRAY_BUFFER, NUM_OBJECTS * 5 * sizeof(GLfloat), NULL, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, MAX_NUM_ENTITIES * 5 * sizeof(GLfloat), NULL, GL_STATIC_DRAW);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (void*)0);
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (void*)(2 * sizeof(GLfloat)));
     glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (void*)(4 * sizeof(GLfloat)));
@@ -337,7 +338,7 @@ static void create_vertex_arrays(void)
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), (void*)0);
     glEnableVertexAttribArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, render_ctx.vbos[VBO_CIRCLE]);
-    glBufferData(GL_ARRAY_BUFFER, NUM_OBJECTS * 3 * sizeof(GLfloat), NULL, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, MAX_NUM_ENTITIES * 3 * sizeof(GLfloat), NULL, GL_STATIC_DRAW);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (void*)0);
     glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (void*)(2 * sizeof(GLfloat)));
     glEnableVertexAttribArray(1);
@@ -445,44 +446,61 @@ void render_text(char* text, f32 x, f32 y)
     render_text_ex(text, x, y, 1.0f, (Color){0.0f, 0.0f, 0.0f, 1.0f});
 }
 
+static GLfloat* add_entity_to_buffer(GLfloat* buffer, Entity* entity)
+{
+    buffer[0] = entity->position.x;
+    buffer[1] = entity->position.y;
+    buffer[2] = entity->size.x;
+    buffer[3] = entity->size.y;
+    buffer[4] = fmod(entity->rotation, 2 * M_PI);
+    return buffer + RECT_VERTEX_LENGTH;
+}
+
 void render_entities(void)
 {
-    Pool* pool = &global_ctx.pool;
-    for (i32 i = 0; i < pool->size; i++)
-    {
-        Entity* entity = pool->entities + pool->dense[i];
+    Pool* pool = &global_ctx.projectile_pool;
+    GLfloat* buffer = render_ctx.rect_vertex_buffer;
 
-        render_ctx.rect_vertex_buffer[RECT_VERTEX_LENGTH * i]     = entity->position.x;
-        render_ctx.rect_vertex_buffer[RECT_VERTEX_LENGTH * i + 1] = entity->position.y;
-        render_ctx.rect_vertex_buffer[RECT_VERTEX_LENGTH * i + 2] = entity->size.x;
-        render_ctx.rect_vertex_buffer[RECT_VERTEX_LENGTH * i + 3] = entity->size.y;
-        render_ctx.rect_vertex_buffer[RECT_VERTEX_LENGTH * i + 4] = entity->rotation;
-    }
+    for (i32 i = 0; i < pool->size; i++)
+        buffer = add_entity_to_buffer(buffer, pool->entities + pool->dense[i]);
+
+    buffer = add_entity_to_buffer(buffer, &global_ctx.player);
+
+    // render each entity in pool + player
+    i32 num_entities = pool->size + 1;
 
     glUseProgram(render_ctx.programs[PROGRAM_RECT]);
     glBindVertexArray(render_ctx.vaos[VAO_RECT]);
     glBindBuffer(GL_ARRAY_BUFFER, render_ctx.vbos[VBO_RECT]);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, pool->size * RECT_VERTEX_LENGTH * sizeof(GLfloat), render_ctx.rect_vertex_buffer);
-    glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, pool->size);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, num_entities * RECT_VERTEX_LENGTH * sizeof(GLfloat), render_ctx.rect_vertex_buffer);
+    glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, num_entities);
+}
+
+static GLfloat* add_entity_hitbox_to_buffer(GLfloat* buffer, Entity* entity)
+{
+    buffer[0] = entity->position.x;
+    buffer[1] = entity->position.y;
+    buffer[2] = entity->hitbox_radius;
+    return buffer + CIRCLE_VERTEX_LENGTH;
 }
 
 void render_entity_hitboxes(void)
 {
-    Pool* pool = &global_ctx.pool;
+    Pool* pool = &global_ctx.projectile_pool;
+    GLfloat* buffer = render_ctx.circle_vertex_buffer;
     for (i32 i = 0; i < pool->size; i++)
-    {
-        Entity* entity = pool->entities + pool->dense[i];
+        buffer = add_entity_hitbox_to_buffer(buffer, pool->entities + pool->dense[i]);
 
-        render_ctx.rect_vertex_buffer[CIRCLE_VERTEX_LENGTH * i]     = entity->position.x;
-        render_ctx.rect_vertex_buffer[CIRCLE_VERTEX_LENGTH * i + 1] = entity->position.y;
-        render_ctx.rect_vertex_buffer[CIRCLE_VERTEX_LENGTH * i + 2] = entity->hitbox_radius;
-    }
+    buffer = add_entity_hitbox_to_buffer(buffer, &global_ctx.player);
+
+    // render each entity in pool + player
+    i32 num_entities = pool->size + 1;
 
     glUseProgram(render_ctx.programs[PROGRAM_CIRCLE]);
     glBindVertexArray(render_ctx.vaos[VAO_CIRCLE]);
     glBindBuffer(GL_ARRAY_BUFFER, render_ctx.vbos[VBO_CIRCLE]);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, pool->size * CIRCLE_VERTEX_LENGTH * sizeof(GLfloat), render_ctx.rect_vertex_buffer);
-    glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, pool->size);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, num_entities * CIRCLE_VERTEX_LENGTH * sizeof(GLfloat), render_ctx.circle_vertex_buffer);
+    glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, num_entities);
 }
 
 void render()
@@ -492,13 +510,9 @@ void render()
     glClear(GL_COLOR_BUFFER_BIT);
     glClearColor(0.8f, 0.8f, 0.8f, 1.0f);
 
-    render_text("The quick, brown fox jumps over the lazy dog.?!", 40, 120);
-
-    f64 v = sin(global_ctx.time);
-    render_text_ex("Hello, World!", 40, 40, 0.8 + 0.4 * v, (Color){1.0f, 0.0f, 1.0f, 1.0f});
-
     render_entities();
-    render_entity_hitboxes();
+    if (global_ctx.draw_hitboxes)
+        render_entity_hitboxes();
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glViewport(0, 0, global_ctx.window_width, global_ctx.window_height);

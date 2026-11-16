@@ -45,6 +45,9 @@ void key_callback(GLFWwindow* window, i32 key, i32 scancode, i32 action, i32 mod
             glfwSetWindowMonitor(window, NULL, 200, 200, 640, 480, 0);
         }
     }
+
+    if (key == GLFW_KEY_F1 && action == GLFW_PRESS)
+        global_ctx.draw_hitboxes = !global_ctx.draw_hitboxes;
 }
 
 int main()

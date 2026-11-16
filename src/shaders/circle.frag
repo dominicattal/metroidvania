@@ -7,5 +7,7 @@ in vec2 TexCoord;
 void main()
 {
     float x = length(TexCoord);
-    FragColor = vec4(1.0f, 0.0f, 0.0f, 1.0f - x * 2.0f);
+    if (x > 0.5)
+        discard;
+    FragColor = vec4(1.0f, 0.0f, 0.0f, 1.0f);
 }
