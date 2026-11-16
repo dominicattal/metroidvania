@@ -20,4 +20,4 @@ void main()
             ((inOffset.x + x) / window.resolution.x - 0.5f) * 2.0f,
             ((inOffset.y + y) / window.resolution.y - 0.5f) * 2.0f,
             0.0f, 1.0f);
-}
+};

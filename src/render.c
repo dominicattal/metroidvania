@@ -21,6 +21,16 @@ typedef enum {
 } Program;
 
 typedef enum {
+    SHADER_TEXT_VERT,
+    SHADER_TEXT_FRAG,
+    SHADER_RECT_VERT,
+    SHADER_RECT_FRAG,
+    SHADER_SCREEN_VERT,
+    SHADER_SCREEN_FRAG,
+    NUM_SHADERS
+} Shaders;
+
+typedef enum {
     VAO_SCREEN,
     VAO_TEXT,
     VAO_RECT,
@@ -66,40 +76,21 @@ typedef struct {
 
 RenderContext render_ctx;
 
-static char* read_file(const char* path)
+static u32 compile(GLenum type, const char* shader_code)
 {
-    FILE* ptr;
-    char* content;
-    i32 len;
-    static char buffer[1028];
-    ptr = fopen(path, "r");
-    fseek(ptr, 0, SEEK_END);
-    len = ftell(ptr);
-    log_assert(len != 0, "File %s is empty", path);
-    fseek(ptr, 0, SEEK_SET);
-    len = fread(buffer, 1, len, ptr);
-    fclose(ptr);
-    buffer[len] = '\0';
-    return buffer;
-}
-
-static u32 compile(GLenum type, const char* path)
-{
-    u32 shader;
-    char* shader_code;
+    GLuint shader;
     char info_log[512];
     i32 success;
 
     shader = glCreateShader(type);
-    shader_code = read_file(path);
-    glShaderSource(shader, 1, (const char* const*)&shader_code, NULL);
+    glShaderSource(shader, 1, &shader_code, NULL);
     glCompileShader(shader);
     glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
 
     if (!success)
     {
         glGetShaderInfoLog(shader, 512, NULL, info_log);
-        log(FATAL, "Failed to compile %s\n%s", path, info_log);
+        log(FATAL, "Failed to compile shader\n%s", info_log);
     }
     return shader;
 }
@@ -121,7 +112,13 @@ static void link(GLuint program)
 static void create_font(void)
 {
     FT_Init_FreeType(&render_ctx.library);
-    FT_New_Face(render_ctx.library, "assets/fonts/Noto_Sans/NotoSans-VariableFont_wdth,wght.ttf", 0, &render_ctx.face);
+
+    const uint8_t font_data[] =
+    {
+    #embed "../assets/fonts/Noto_Sans/NotoSans-VariableFont_wdth,wght.ttf"
+    };
+
+    FT_New_Memory_Face(render_ctx.library, font_data, sizeof(font_data), 0, &render_ctx.face);
     FT_Set_Pixel_Sizes(render_ctx.face, 0, FONT_SIZE);
 
     if (render_ctx.face->glyph->format != FT_GLYPH_FORMAT_BITMAP)
@@ -182,11 +179,21 @@ static void create_font(void)
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, TEXTURE_WIDTH, TEXTURE_WIDTH, 0, GL_RED, GL_UNSIGNED_BYTE, buffer);
 }
 
-static void create_shader_programs(void)
+static void create_shader_program_text()
 {
     GLuint vert, frag;
-    vert = compile(GL_VERTEX_SHADER, "assets/shaders/text.vert");
-    frag = compile(GL_FRAGMENT_SHADER, "assets/shaders/text.frag");
+    const char source_vert[] =
+    {
+    #embed "shaders/text.vert"
+    , '\0'
+    };
+    const char source_frag[] =
+    {
+    #embed "shaders/text.frag"
+    , '\0'
+    };
+    vert = compile(GL_VERTEX_SHADER, source_vert);
+    frag = compile(GL_FRAGMENT_SHADER, source_frag);
     glAttachShader(render_ctx.programs[PROGRAM_TEXT], vert);
     glAttachShader(render_ctx.programs[PROGRAM_TEXT], frag);
     link(render_ctx.programs[PROGRAM_TEXT]);
@@ -196,9 +203,24 @@ static void create_shader_programs(void)
     glDeleteShader(frag);
     glUniform1i(glGetUniformLocation(render_ctx.programs[PROGRAM_TEXT], "glyphBitmap"), render_ctx.textures[TEXTURE_GLYPH_BITMAP]);
     glUniformBlockBinding(render_ctx.programs[PROGRAM_TEXT], glGetUniformBlockIndex(render_ctx.programs[PROGRAM_TEXT], "Window"), UBO_INDEX_WINDOW);
+}
 
-    vert = compile(GL_VERTEX_SHADER, "assets/shaders/rect.vert");
-    frag = compile(GL_FRAGMENT_SHADER, "assets/shaders/rect.frag");
+static void create_shader_program_rect()
+{
+    GLuint vert, frag;
+    const char source_vert[] =
+    {
+    #embed "shaders/rect.vert"
+    , '\0'
+    };
+    const char source_frag[] =
+    {
+    #embed "shaders/rect.frag"
+    , '\0'
+    };
+    create_shader_program_text();
+    vert = compile(GL_VERTEX_SHADER, source_vert);
+    frag = compile(GL_FRAGMENT_SHADER, source_frag);
     glAttachShader(render_ctx.programs[PROGRAM_RECT], vert);
     glAttachShader(render_ctx.programs[PROGRAM_RECT], frag);
     link(render_ctx.programs[PROGRAM_RECT]);
@@ -207,9 +229,23 @@ static void create_shader_programs(void)
     glDeleteShader(vert);
     glDeleteShader(frag);
     glUniformBlockBinding(render_ctx.programs[PROGRAM_RECT], glGetUniformBlockIndex(render_ctx.programs[PROGRAM_TEXT], "Window"), UBO_INDEX_WINDOW);
+}
 
-    vert = compile(GL_VERTEX_SHADER, "assets/shaders/screen.vert");
-    frag = compile(GL_FRAGMENT_SHADER, "assets/shaders/screen.frag");
+static void create_shader_program_screen()
+{
+    GLuint vert, frag;
+    const char source_vert[] =
+    {
+    #embed "shaders/screen.vert"
+    , '\0'
+    };
+    const char source_frag[] =
+    {
+    #embed "shaders/screen.frag"
+    , '\0'
+    };
+    vert = compile(GL_VERTEX_SHADER, source_vert);
+    frag = compile(GL_FRAGMENT_SHADER, source_frag);
     glAttachShader(render_ctx.programs[PROGRAM_SCREEN], vert);
     glAttachShader(render_ctx.programs[PROGRAM_SCREEN], frag);
     link(render_ctx.programs[PROGRAM_SCREEN]);
@@ -218,6 +254,13 @@ static void create_shader_programs(void)
     glDeleteShader(vert);
     glDeleteShader(frag);
     glUniform1i(glGetUniformLocation(render_ctx.programs[PROGRAM_SCREEN], "screenTex"), render_ctx.textures[TEXTURE_FBO]);
+}
+
+static void create_shader_programs(void)
+{
+    create_shader_program_text();
+    create_shader_program_rect();
+    create_shader_program_screen();
 }
 
 static void create_window_ubo(void)
