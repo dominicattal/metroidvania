@@ -28,6 +28,7 @@ typedef struct {
 } Rect;
 
 typedef struct {
+    GLFWmonitor* monitor;
     GLFWwindow* window;
     i32 window_width;
     i32 window_height;

@@ -19,6 +19,21 @@ void key_callback(GLFWwindow* window, i32 key, i32 scancode, i32 action, i32 mod
 {
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
+
+    if (key == GLFW_KEY_F11 && action == GLFW_PRESS)
+    {
+        if (global_ctx.monitor == NULL)
+        {
+            global_ctx.monitor = glfwGetPrimaryMonitor();
+            const GLFWvidmode* mode = glfwGetVideoMode(global_ctx.monitor);
+            glfwSetWindowMonitor(window, global_ctx.monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+        }
+        else
+        {
+            global_ctx.monitor = NULL;
+            glfwSetWindowMonitor(window, NULL, 200, 200, 640, 480, 0);
+        }
+    }
 }
 
 int main()
