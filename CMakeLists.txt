@@ -8,6 +8,7 @@ add_subdirectory(vendor/glfw)
 
 add_executable(metroid
     ${CMAKE_HOME_DIRECTORY}/src/main.c
+    ${CMAKE_HOME_DIRECTORY}/src/render.c
     ${CMAKE_HOME_DIRECTORY}/src/util/log.c
     ${CMAKE_HOME_DIRECTORY}/vendor/glad/src/glad.c
 )
