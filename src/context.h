@@ -10,16 +10,18 @@
 
 #define RESOLUTION_X 1920
 #define RESOLUTION_Y 1080
-#define NUM_OBJECTS 1000
+#define NUM_OBJECTS 10000
 
 typedef enum {
     FLAG_RECT_HITBOX = 1 << 0,
+    FLAG_EXPIRE = 1 << 1,
 } EntityFlag;
 
 typedef struct {
     vec2 position;
     vec2 velocity;
     vec2 size;
+    f64 expire_time;
     f32 rotation;
     u32 flags;
     union {
@@ -29,13 +31,14 @@ typedef struct {
 } Entity;
 
 typedef struct {
-    Entity entities[NUM_OBJECTS];
-    i32 dense[NUM_OBJECTS];
-    i32 sparse[NUM_OBJECTS];
+    Entity entities[NUM_OBJECTS+1];
+    i32 dense[NUM_OBJECTS+1];
+    i32 sparse[NUM_OBJECTS+1];
     i32 size;
 } Pool;
 
 typedef struct {
+
     i32 window_width;
     i32 window_height;
 

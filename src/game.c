@@ -1,7 +1,10 @@
 #include "context.h"
+#include <stdlib.h>
+#include <string.h>
 
 typedef struct {
     i32 player_id;
+    f64 next_create_time;
 } GameContext;
 
 extern GlobalContext global_ctx;
@@ -19,12 +22,13 @@ i32 pool_alloc(void)
     if (pool->size == NUM_OBJECTS)
     {
         log(ERROR, "Pool alloc failed");
-        return -1;
+        return NUM_OBJECTS;
     }
 
     i32 dense_idx = pool->size++;
     i32 sparse_idx = pool->dense[dense_idx];
     pool->sparse[sparse_idx] = dense_idx;
+    memset(global_ctx.pool.entities + sparse_idx, 0, sizeof(Entity));
     return sparse_idx;
 }
 
@@ -35,12 +39,16 @@ Entity* pool_ref(i32 sparse_idx)
 
 void pool_free(i32 sparse_idx)
 {
+    if (sparse_idx == NUM_OBJECTS)
+        return;
+
     Pool* pool = &global_ctx.pool;
 
     i32 dense_idx = pool->sparse[sparse_idx];
     i32 dense_idx_swap = pool->size - 1;
-    i32 sparse_idx_swap = pool->sparse[dense_idx_swap];
+    i32 sparse_idx_swap = pool->dense[dense_idx_swap];
 
+    pool->sparse[sparse_idx] = dense_idx_swap;
     pool->sparse[sparse_idx_swap] = dense_idx;
     pool->dense[dense_idx] = sparse_idx_swap;
     pool->dense[dense_idx_swap] = sparse_idx;
@@ -82,6 +90,20 @@ void game_init(void)
 
 void game_update(void)
 {
+    if (global_ctx.time > game_ctx.next_create_time)
+    {
+        f32 x = randf_range(0.0f, RESOLUTION_X);
+        i32 id = pool_alloc();
+        Entity* entity = pool_ref(id);
+        entity->position = vec2_create(x, RESOLUTION_Y);
+        entity->velocity = vec2_create(0.0f, -200.0f);
+        flag_set(entity, FLAG_EXPIRE);
+        entity->size = vec2_create(20.0f, 20.0f);
+        entity->expire_time = global_ctx.time + 5.0f;
+        entity->hitbox_radius = 5.0f;
+        game_ctx.next_create_time = global_ctx.time + 0.1f;
+    }
+
     Entity* player = pool_ref(game_ctx.player_id);
 
     f32 speed = 200.0f;
@@ -98,12 +120,19 @@ void game_update(void)
     if (key_pressed(GLFW_KEY_S))
         player->velocity.y -= 1.0f;
 
-    player->velocity = vec2_scale_to(player->velocity, speed * global_ctx.dt);
+    player->velocity = vec2_scale_to(player->velocity, speed);
 
     Pool* pool = &global_ctx.pool;
-    for (i32 i = 0; i < pool->size; i++)
+    i32 i = 0;
+    while (i < pool->size)
     {
-        Entity* entity = pool_ref(i);
-        entity->position = vec2_add(entity->position, entity->velocity);
+        Entity* entity = pool->entities + pool->dense[i];
+        if (flag_test(entity, FLAG_EXPIRE) && global_ctx.time > entity->expire_time)
+        {
+            pool_free(pool->dense[i]);
+            continue;
+        }
+        entity->position = vec2_add(entity->position, vec2_scale(entity->velocity, global_ctx.dt));
+        i++;
     }
 }
