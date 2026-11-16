@@ -4,6 +4,7 @@
 #define STB_RECT_PACK_IMPLEMENTATION
 #include <stb_rect_pack.h>
 
+#define UBO_INDEX_WINDOW 1
 #define TEXTURE_WIDTH 1024
 #define TEXTURE_SIZE (TEXTURE_WIDTH * TEXTURE_WIDTH)
 #define GLYPH_START 32
@@ -13,35 +14,31 @@
 #define BITMAP_PADDING 1
 #define MAX_TEXT_SIZE 1024
 
+#define RECT_VERTEX_LENGTH   5
+#define CIRCLE_VERTEX_LENGTH 3
+
 typedef enum {
    PROGRAM_SCREEN,
    PROGRAM_TEXT,
    PROGRAM_RECT,
+   PROGRAM_CIRCLE,
    NUM_PROGRAMS
 } Program;
-
-typedef enum {
-    SHADER_TEXT_VERT,
-    SHADER_TEXT_FRAG,
-    SHADER_RECT_VERT,
-    SHADER_RECT_FRAG,
-    SHADER_SCREEN_VERT,
-    SHADER_SCREEN_FRAG,
-    NUM_SHADERS
-} Shaders;
 
 typedef enum {
     VAO_SCREEN,
     VAO_TEXT,
     VAO_RECT,
+    VAO_CIRCLE,
     NUM_VAOS
 } VAO;
 
 typedef enum {
     VBO_SCREEN,
     VBO_TEXT,
+    VBO_QUAD,
     VBO_RECT,
-    VBO_RECT_INSTANCE,
+    VBO_CIRCLE,
     NUM_VBOS
 } VBO;
 
@@ -68,6 +65,9 @@ typedef struct {
     GLuint vbos[NUM_VBOS];
     GLuint ubos[NUM_UBOS];
     GLuint textures[NUM_TEXTURES];
+
+    GLfloat rect_vertex_buffer[NUM_OBJECTS * RECT_VERTEX_LENGTH];
+    GLfloat circle_vertex_buffer[NUM_OBJECTS * CIRCLE_VERTEX_LENGTH];
 
     GLuint fbo;
     GLuint rbo;
@@ -228,7 +228,33 @@ static void create_shader_program_rect()
     glDetachShader(render_ctx.programs[PROGRAM_RECT], frag);
     glDeleteShader(vert);
     glDeleteShader(frag);
-    glUniformBlockBinding(render_ctx.programs[PROGRAM_RECT], glGetUniformBlockIndex(render_ctx.programs[PROGRAM_TEXT], "Window"), UBO_INDEX_WINDOW);
+    glUniformBlockBinding(render_ctx.programs[PROGRAM_RECT], glGetUniformBlockIndex(render_ctx.programs[PROGRAM_RECT], "Window"), UBO_INDEX_WINDOW);
+}
+
+static void create_shader_program_circle()
+{
+    GLuint vert, frag;
+    const char source_vert[] =
+    {
+    #embed "shaders/circle.vert"
+    , '\0'
+    };
+    const char source_frag[] =
+    {
+    #embed "shaders/circle.frag"
+    , '\0'
+    };
+    create_shader_program_text();
+    vert = compile(GL_VERTEX_SHADER, source_vert);
+    frag = compile(GL_FRAGMENT_SHADER, source_frag);
+    glAttachShader(render_ctx.programs[PROGRAM_CIRCLE], vert);
+    glAttachShader(render_ctx.programs[PROGRAM_CIRCLE], frag);
+    link(render_ctx.programs[PROGRAM_CIRCLE]);
+    glDetachShader(render_ctx.programs[PROGRAM_CIRCLE], vert);
+    glDetachShader(render_ctx.programs[PROGRAM_CIRCLE], frag);
+    glDeleteShader(vert);
+    glDeleteShader(frag);
+    glUniformBlockBinding(render_ctx.programs[PROGRAM_CIRCLE], glGetUniformBlockIndex(render_ctx.programs[PROGRAM_CIRCLE], "Window"), UBO_INDEX_WINDOW);
 }
 
 static void create_shader_program_screen()
@@ -260,6 +286,7 @@ static void create_shader_programs(void)
 {
     create_shader_program_text();
     create_shader_program_rect();
+    create_shader_program_circle();
     create_shader_program_screen();
 }
 
@@ -273,6 +300,15 @@ static void create_window_ubo(void)
 
 static void create_vertex_arrays(void)
 {
+    GLfloat quad_data[] = {
+        -0.5f, -0.5f,
+        -0.5f,  0.5f,
+         0.5f,  0.5f,
+         0.5f, -0.5f,
+    };
+    glBindBuffer(GL_ARRAY_BUFFER, render_ctx.vbos[VBO_QUAD]);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quad_data), quad_data, GL_STATIC_DRAW);
+
     glBindVertexArray(render_ctx.vaos[VAO_TEXT]);
     glBindBuffer(GL_ARRAY_BUFFER, render_ctx.vbos[VBO_TEXT]);
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(GLfloat), (void*)0);
@@ -280,15 +316,8 @@ static void create_vertex_arrays(void)
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
 
-    GLfloat rect_instance_data[] = {
-        -0.5f, -0.5f,
-        -0.5f,  0.5f,
-         0.5f,  0.5f,
-         0.5f, -0.5f,
-    };
     glBindVertexArray(render_ctx.vaos[VAO_RECT]);
-    glBindBuffer(GL_ARRAY_BUFFER, render_ctx.vbos[VBO_RECT_INSTANCE]);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(rect_instance_data), rect_instance_data, GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, render_ctx.vbos[VBO_QUAD]);
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), (void*)0);
     glEnableVertexAttribArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, render_ctx.vbos[VBO_RECT]);
@@ -302,6 +331,19 @@ static void create_vertex_arrays(void)
     glVertexAttribDivisor(1, 1);
     glVertexAttribDivisor(2, 1);
     glVertexAttribDivisor(3, 1);
+
+    glBindVertexArray(render_ctx.vaos[VAO_CIRCLE]);
+    glBindBuffer(GL_ARRAY_BUFFER, render_ctx.vbos[VBO_QUAD]);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), (void*)0);
+    glEnableVertexAttribArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, render_ctx.vbos[VBO_CIRCLE]);
+    glBufferData(GL_ARRAY_BUFFER, NUM_OBJECTS * 3 * sizeof(GLfloat), NULL, GL_STATIC_DRAW);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (void*)0);
+    glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (void*)(2 * sizeof(GLfloat)));
+    glEnableVertexAttribArray(1);
+    glEnableVertexAttribArray(2);
+    glVertexAttribDivisor(1, 1);
+    glVertexAttribDivisor(2, 1);
 
     GLfloat screen_data[] = {
         -1.0f, -1.0f,
@@ -352,9 +394,9 @@ void render_init(void)
     create_vertex_arrays();
 }
 
-void render_text_ex(char* text, f32 x, f32 y, f32 scale, vec4 color)
+void render_text_ex(char* text, f32 x, f32 y, f32 scale, Color color)
 {
-    GLfloat vertices[MAX_TEXT_SIZE * 6 * 4];
+    static GLfloat vertices[MAX_TEXT_SIZE * 6 * 4];
 
     i32 i, n;
     n = 0;
@@ -390,7 +432,7 @@ void render_text_ex(char* text, f32 x, f32 y, f32 scale, vec4 color)
     }
 
     glUseProgram(render_ctx.programs[PROGRAM_TEXT]);
-    glUniform4f(glGetUniformLocation(render_ctx.programs[PROGRAM_TEXT], "color"), color.x, color.y, color.z, color.w);
+    glUniform4f(glGetUniformLocation(render_ctx.programs[PROGRAM_TEXT], "color"), color.r, color.g, color.b, color.a);
     glBindVertexArray(render_ctx.vaos[VAO_TEXT]);
     glBindTexture(GL_TEXTURE_2D, render_ctx.textures[TEXTURE_GLYPH_BITMAP]);
     glBindBuffer(GL_ARRAY_BUFFER, render_ctx.vbos[VBO_TEXT]);
@@ -400,27 +442,47 @@ void render_text_ex(char* text, f32 x, f32 y, f32 scale, vec4 color)
 
 void render_text(char* text, f32 x, f32 y)
 {
-    render_text_ex(text, x, y, 1.0f, (vec4){0.0f, 0.0f, 0.0f, 1.0f});
+    render_text_ex(text, x, y, 1.0f, (Color){0.0f, 0.0f, 0.0f, 1.0f});
 }
 
-void render_rects(void)
+void render_entities(void)
 {
-    f32 buffer[NUM_OBJECTS * 5];
-
-    for (i32 i = 0; i < global_ctx.num_rects; i++)
+    Pool* pool = &global_ctx.pool;
+    for (i32 i = 0; i < pool->size; i++)
     {
-        buffer[5*i] = global_ctx.rects[i].center.x;
-        buffer[5*i+1] = global_ctx.rects[i].center.y;
-        buffer[5*i+2] = global_ctx.rects[i].size.x;
-        buffer[5*i+3] = global_ctx.rects[i].size.y;
-        buffer[5*i+4] = global_ctx.rects[i].rotation;
+        Entity* entity = pool->entities + pool->dense[i];
+
+        render_ctx.rect_vertex_buffer[RECT_VERTEX_LENGTH * i]     = entity->position.x;
+        render_ctx.rect_vertex_buffer[RECT_VERTEX_LENGTH * i + 1] = entity->position.y;
+        render_ctx.rect_vertex_buffer[RECT_VERTEX_LENGTH * i + 2] = entity->size.x;
+        render_ctx.rect_vertex_buffer[RECT_VERTEX_LENGTH * i + 3] = entity->size.y;
+        render_ctx.rect_vertex_buffer[RECT_VERTEX_LENGTH * i + 4] = entity->rotation;
     }
 
     glUseProgram(render_ctx.programs[PROGRAM_RECT]);
     glBindVertexArray(render_ctx.vaos[VAO_RECT]);
     glBindBuffer(GL_ARRAY_BUFFER, render_ctx.vbos[VBO_RECT]);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, global_ctx.num_rects * 5 * sizeof(GLfloat), buffer);
-    glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, global_ctx.num_rects);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, pool->size * RECT_VERTEX_LENGTH * sizeof(GLfloat), render_ctx.rect_vertex_buffer);
+    glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, pool->size);
+}
+
+void render_entity_hitboxes(void)
+{
+    Pool* pool = &global_ctx.pool;
+    for (i32 i = 0; i < pool->size; i++)
+    {
+        Entity* entity = pool->entities + pool->dense[i];
+
+        render_ctx.rect_vertex_buffer[CIRCLE_VERTEX_LENGTH * i]     = entity->position.x;
+        render_ctx.rect_vertex_buffer[CIRCLE_VERTEX_LENGTH * i + 1] = entity->position.y;
+        render_ctx.rect_vertex_buffer[CIRCLE_VERTEX_LENGTH * i + 2] = entity->hitbox_radius;
+    }
+
+    glUseProgram(render_ctx.programs[PROGRAM_CIRCLE]);
+    glBindVertexArray(render_ctx.vaos[VAO_CIRCLE]);
+    glBindBuffer(GL_ARRAY_BUFFER, render_ctx.vbos[VBO_CIRCLE]);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, pool->size * CIRCLE_VERTEX_LENGTH * sizeof(GLfloat), render_ctx.rect_vertex_buffer);
+    glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, pool->size);
 }
 
 void render()
@@ -433,18 +495,17 @@ void render()
     render_text("The quick, brown fox jumps over the lazy dog.?!", 40, 120);
 
     f64 v = sin(global_ctx.time);
-    render_text_ex("Hello, World!", 40, 40, 0.8 + 0.4 * v, (vec4){1.0f, 0.0f, 1.0f, 1.0f});
+    render_text_ex("Hello, World!", 40, 40, 0.8 + 0.4 * v, (Color){1.0f, 0.0f, 1.0f, 1.0f});
 
-    render_rects();
+    render_entities();
+    render_entity_hitboxes();
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glViewport(0, 0, global_ctx.window_width, global_ctx.window_height);
-    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     glClear(GL_COLOR_BUFFER_BIT);
     glClearColor(0.8f, 0.8f, 0.8f, 1.0f);
     glUseProgram(render_ctx.programs[PROGRAM_SCREEN]);
     glBindVertexArray(render_ctx.vaos[VAO_SCREEN]);
     glBindTexture(GL_TEXTURE_2D, render_ctx.textures[TEXTURE_FBO]);
     glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 }

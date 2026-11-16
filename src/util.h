@@ -3,5 +3,6 @@
 
 #include "util/type.h"
 #include "util/log.h"
+#include "util/linalg.h"
 
 #endif
