@@ -6,14 +6,14 @@
       "binaryDir": "${sourceDir}/build",
       "generator": "Unix Makefiles",
       "cacheVariables": {
-        "GLFW_BUILD_X11": "1",
-        "GLFW_BUILD_WAYLAND": "0",
+        "GLFW_BUILD_X11": "0",
+        "GLFW_BUILD_WAYLAND": "1",
         "CMAKE_POLICY_VERSION_MINIMUM": "3.5",
         "CMAKE_C_STANDARD": "23",
         "CMAKE_CXX_STANDARD": "23",
         "CMAKE_C_COMPILER": "clang",
         "CMAKE_CXX_COMPILER": "clang++",
-        "CMAKE_CXX_FLAGS": "-Wall -Wextra -Wpedantic -Werror -Wfatal-errors -Wno-language-extension-token -Wno-deprecated-declarations",
+        "CMAKE_CXX_FLAGS": "-Wall -Wextra -Wpedantic -Werror -Wfatal-errors",
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_CXX_FLAGS_DEBUG": "-Og -g3"
       }

@@ -2,6 +2,15 @@ cmake_minimum_required(VERSION 3.5)
 
 project(metroid)
 
+find_package(Freetype REQUIRED)
+
+add_subdirectory(vendor/glfw)
+
 add_executable(metroid
-    src/main.c
+    ${CMAKE_HOME_DIRECTORY}/src/main.c
+    ${CMAKE_HOME_DIRECTORY}/src/util/log.c
+    ${CMAKE_HOME_DIRECTORY}/vendor/glad/src/glad.c
 )
+
+target_include_directories(metroid PRIVATE vendor/glad/include vendor/stb)
+target_link_libraries(metroid PRIVATE glfw Freetype::Freetype)
