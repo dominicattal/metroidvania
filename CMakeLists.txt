@@ -5,13 +5,14 @@ project(metroid)
 find_package(Freetype REQUIRED)
 
 add_subdirectory(vendor/glfw)
+add_subdirectory(vendor/miniaudio)
 
 add_executable(metroid
     ${CMAKE_HOME_DIRECTORY}/src/main.c
     ${CMAKE_HOME_DIRECTORY}/src/game.c
-    ${CMAKE_HOME_DIRECTORY}/src/pool.c
     ${CMAKE_HOME_DIRECTORY}/src/render.c
     ${CMAKE_HOME_DIRECTORY}/src/util/log.c
+    ${CMAKE_HOME_DIRECTORY}/src/util/arena.c
     ${CMAKE_HOME_DIRECTORY}/src/util/json.c
     ${CMAKE_HOME_DIRECTORY}/src/util/linalg.c
     ${CMAKE_HOME_DIRECTORY}/src/util/rand.c
@@ -19,7 +20,7 @@ add_executable(metroid
 )
 
 target_include_directories(metroid PRIVATE vendor/glad/include vendor/stb)
-target_link_libraries(metroid PRIVATE glfw Freetype::Freetype)
+target_link_libraries(metroid PRIVATE glfw Freetype::Freetype miniaudio)
 
 file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/assets/)
 file(COPY ${CMAKE_HOME_DIRECTORY}/assets/ DESTINATION ${CMAKE_BINARY_DIR}/assets/)

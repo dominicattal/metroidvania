@@ -80,7 +80,7 @@ typedef struct {
 
     AnimationData animations[NUM_ANIMATIONS];
 
-    // max number of objects in pool + player
+    // max number of objects in arena + player
     GLfloat rect_vertex_buffer[MAX_NUM_ENTITIES * RECT_VERTEX_LENGTH];
     GLfloat circle_vertex_buffer[MAX_NUM_ENTITIES * CIRCLE_VERTEX_LENGTH];
 
@@ -648,16 +648,16 @@ static GLfloat* add_entity_to_buffer(GLfloat* buffer, Entity* entity)
 
 void render_entities(void)
 {
-    Pool* pool = &global_ctx.projectile_pool;
+    Arena* arena = &global_ctx.projectile_arena;
     GLfloat* buffer = render_ctx.rect_vertex_buffer;
 
-    for (i32 i = 0; i < pool->size; i++)
-        buffer = add_entity_to_buffer(buffer, pool->entities + pool->dense[i]);
+    for (i32 i = 0; i < arena->size; i++)
+        buffer = add_entity_to_buffer(buffer, arena_at(arena, i));
 
     buffer = add_entity_to_buffer(buffer, &global_ctx.player);
 
-    // render each entity in pool + player
-    i32 num_entities = pool->size + 1;
+    // render each entity in arena + player
+    i32 num_entities = arena->size + 1;
 
     glUseProgram(render_ctx.programs[PROGRAM_RECT]);
     glBindVertexArray(render_ctx.vaos[VAO_RECT]);
@@ -677,15 +677,15 @@ static GLfloat* add_entity_hitbox_to_buffer(GLfloat* buffer, Entity* entity)
 
 void render_entity_hitboxes(void)
 {
-    Pool* pool = &global_ctx.projectile_pool;
+    Arena* arena = &global_ctx.projectile_arena;
     GLfloat* buffer = render_ctx.circle_vertex_buffer;
-    for (i32 i = 0; i < pool->size; i++)
-        buffer = add_entity_hitbox_to_buffer(buffer, pool->entities + pool->dense[i]);
+    for (i32 i = 0; i < arena->size; i++)
+        buffer = add_entity_hitbox_to_buffer(buffer, arena_at(arena, i));
 
     buffer = add_entity_hitbox_to_buffer(buffer, &global_ctx.player);
 
-    // render each entity in pool + player
-    i32 num_entities = pool->size + 1;
+    // render each entity in arena + player
+    i32 num_entities = arena->size + 1;
 
     glUseProgram(render_ctx.programs[PROGRAM_CIRCLE]);
     glBindVertexArray(render_ctx.vaos[VAO_CIRCLE]);

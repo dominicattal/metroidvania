@@ -6,5 +6,6 @@
 #include "util/linalg.h"
 #include "util/rand.h"
 #include "util/json.h"
+#include "util/arena.h"
 
 #endif

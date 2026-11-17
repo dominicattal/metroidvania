@@ -16,21 +16,26 @@
 #define MAX_NUM_ENTITIES (MAX_NUM_PROJECTILES + MAX_NUM_ENEMIES + 1)
 
 typedef enum {
+    SOUND_TEST,
+    NUM_SOUNDS
+} Sound;
+
+typedef enum {
     ANIMATION_SOUL,
     NUM_ANIMATIONS
 } AnimationType;
-
-typedef struct {
-    AnimationType type;
-    f64 duration;
-    i32 frame;
-} Animation;
 
 typedef enum {
     FLAG_RECT_HITBOX = 1 << 0,
     FLAG_EXPIRE      = 1 << 1,
     FLAG_DELETE      = 1 << 2,
 } EntityFlag;
+
+typedef struct {
+    AnimationType type;
+    f64 duration;
+    i32 frame;
+} Animation;
 
 typedef struct {
     Animation animation;
@@ -47,19 +52,11 @@ typedef struct {
 } Entity;
 
 typedef struct {
-    Entity* entities;
-    i32* dense;
-    i32* sparse;
-    i32 size;
-    i32 capacity;
-} Pool;
-
-typedef struct {
 
     i32 window_width;
     i32 window_height;
 
-    Pool projectile_pool;
+    Arena projectile_arena;
 
     Entity player;
 
@@ -73,13 +70,11 @@ extern GlobalContext global_ctx;
 
 bool key_pressed(i32 key);
 
-void    pool_init(Pool* pool, i32 capacity);
-i32     pool_alloc(Pool* pool);
-Entity* pool_ref(Pool* pool, i32 id);
-void    pool_free(Pool* pool, i32 id);
-
 void animation_init(Animation* animation, AnimationType type);
 void animation_update(Animation* animation, f64 dt);
+
+void audio_init(void);
+void audio_play(Sound sound);
 
 void render_init(void);
 void render(void);

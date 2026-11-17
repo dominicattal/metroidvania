@@ -31,7 +31,7 @@ void flag_toggle(Entity* entity, EntityFlag flag)
 
 void game_init(void)
 {
-    pool_init(&global_ctx.projectile_pool, MAX_NUM_PROJECTILES);
+    arena_init(&global_ctx.projectile_arena, sizeof(Entity), MAX_NUM_PROJECTILES);
 
     Entity* entity = &global_ctx.player;
     entity->position = (vec2){200.0f, 300.0f};
@@ -53,24 +53,24 @@ static void entity_update(Entity* entity, f64 dt)
 
 void game_update(f64 dt)
 {
-    Pool* pool = &global_ctx.projectile_pool;
+    Arena* arena = &global_ctx.projectile_arena;
 
-    //if (global_ctx.time > game_ctx.next_create_time)
-    //{
-    //    for (i32 i = 0; i < 10; i++)
-    //    {
-    //        f32 x = randf_range(0.0f, RESOLUTION_X);
-    //        i32 id = pool_alloc(pool);
-    //        Entity* entity = pool_ref(pool, id);
-    //        entity->position = vec2_create(x, RESOLUTION_Y);
-    //        entity->velocity = vec2_create(0.0f, -200.0f);
-    //        flag_set(entity, FLAG_EXPIRE);
-    //        entity->size = vec2_create(20.0f, 20.0f);
-    //        entity->expire_time = global_ctx.time + 5.0f;
-    //        entity->hitbox_radius = 5.0f;
-    //    }
-    //    game_ctx.next_create_time = global_ctx.time + 0.1f;
-    //}
+    if (global_ctx.time > game_ctx.next_create_time)
+    {
+        for (i32 i = 0; i < 10; i++)
+        {
+            f32 x = randf_range(0.0f, RESOLUTION_X);
+            i32 id = arena_alloc(arena);
+            Entity* entity = arena_deref(arena, id);
+            entity->position = vec2_create(x, RESOLUTION_Y);
+            entity->velocity = vec2_create(0.0f, -200.0f);
+            flag_set(entity, FLAG_EXPIRE);
+            entity->size = vec2_create(20.0f, 20.0f);
+            entity->expire_time = global_ctx.time + 5.0f;
+            entity->hitbox_radius = 5.0f;
+        }
+        game_ctx.next_create_time = global_ctx.time + 0.1f;
+    }
 
     Entity* player = &global_ctx.player;
 
@@ -91,16 +91,16 @@ void game_update(f64 dt)
     player->velocity = vec2_scale_to(player->velocity, speed);
 
     i32 i = 0;
-    while (i < pool->size)
+    while (i < arena->size)
     {
-        Entity* entity = pool->entities + pool->dense[i];
+        Entity* entity = arena_at(arena, i);
         if (collide(entity, player))
         {
             flag_set(entity, FLAG_DELETE);
         }
         if (flag_test(entity, FLAG_DELETE) || (flag_test(entity, FLAG_EXPIRE) && global_ctx.time > entity->expire_time))
         {
-            pool_free(pool, pool->dense[i]);
+            arena_free(arena, arena_id(arena, i));
             continue;
         }
         entity_update(entity, dt);
