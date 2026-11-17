@@ -7,7 +7,7 @@ typedef struct {
 } GameContext;
 
 extern GlobalContext global_ctx;
-GameContext game_ctx;
+static GameContext game_ctx;
 
 bool flag_test(Entity* entity, EntityFlag flag)
 {
@@ -35,7 +35,7 @@ void game_init(void)
 
     Entity* entity = &global_ctx.player;
     entity->position = (vec2){200.0f, 300.0f};
-    entity->size = (vec2){50.0f, 50.0f};
+    entity->size = (vec2){48.0f, 48.0f};
     entity->rotation = 0.0f;
     entity->hitbox_radius = 10.0f;
 }
@@ -45,7 +45,13 @@ bool collide(Entity* e1, Entity* e2)
     return vec2_distance(e1->position, e2->position) < (e1->hitbox_radius + e2->hitbox_radius);
 }
 
-void game_update(void)
+static void entity_update(Entity* entity, f64 dt)
+{
+    animation_update(&entity->animation, dt);
+    entity->position = vec2_add(entity->position, vec2_scale(entity->velocity, dt));
+}
+
+void game_update(f64 dt)
 {
     Pool* pool = &global_ctx.projectile_pool;
 
@@ -82,7 +88,7 @@ void game_update(void)
     if (key_pressed(GLFW_KEY_S))
         player->velocity.y -= 1.0f;
 
-    player->velocity = vec2_scale_to(player->velocity, speed * global_ctx.dt);
+    player->velocity = vec2_scale_to(player->velocity, speed);
 
     i32 i = 0;
     while (i < pool->size)
@@ -97,8 +103,8 @@ void game_update(void)
             pool_free(pool, pool->dense[i]);
             continue;
         }
-        entity->position = vec2_add(entity->position, vec2_scale(entity->velocity, global_ctx.dt));
+        entity_update(entity, dt);
         i++;
     }
-    player->position = vec2_add(player->position, player->velocity);
+    entity_update(player, dt);
 }

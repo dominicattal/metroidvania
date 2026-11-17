@@ -3,6 +3,8 @@
 #include FT_FREETYPE_H
 #define STB_RECT_PACK_IMPLEMENTATION
 #include <stb_rect_pack.h>
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
 
 #define UBO_INDEX_WINDOW 1
 #define TEXTURE_WIDTH 1024
@@ -13,8 +15,9 @@
 #define FONT_SIZE 36
 #define BITMAP_PADDING 1
 #define MAX_TEXT_SIZE 1024
+#define MAX_NUM_FRAMES 8
 
-#define RECT_VERTEX_LENGTH   5
+#define RECT_VERTEX_LENGTH   9
 #define CIRCLE_VERTEX_LENGTH 3
 
 typedef enum {
@@ -50,8 +53,17 @@ typedef enum {
 typedef enum {
     TEXTURE_GLYPH_BITMAP,
     TEXTURE_FBO,
+    TEXTURE_SPRITES,
     NUM_TEXTURES
 } Textures;
+
+typedef struct {
+    i32 num_frames;
+    struct {
+        f32 u, v, w, h;
+        f64 duration;
+    } frames[MAX_NUM_FRAMES];
+} AnimationData;
 
 typedef struct {
 
@@ -66,6 +78,8 @@ typedef struct {
     GLuint ubos[NUM_UBOS];
     GLuint textures[NUM_TEXTURES];
 
+    AnimationData animations[NUM_ANIMATIONS];
+
     // max number of objects in pool + player
     GLfloat rect_vertex_buffer[MAX_NUM_ENTITIES * RECT_VERTEX_LENGTH];
     GLfloat circle_vertex_buffer[MAX_NUM_ENTITIES * CIRCLE_VERTEX_LENGTH];
@@ -75,7 +89,14 @@ typedef struct {
 
 } RenderContext;
 
-RenderContext render_ctx;
+static RenderContext render_ctx;
+
+static uint8_t font_data[] =
+{
+#embed "../assets/fonts/Noto_Sans/NotoSans-VariableFont_wdth,wght.ttf"
+};
+
+static u8 buffer[TEXTURE_SIZE];
 
 static u32 compile(GLenum type, const char* shader_code)
 {
@@ -113,12 +134,6 @@ static void link(GLuint program)
 static void create_font(void)
 {
     FT_Init_FreeType(&render_ctx.library);
-
-    const uint8_t font_data[] =
-    {
-    #embed "../assets/fonts/Noto_Sans/NotoSans-VariableFont_wdth,wght.ttf"
-    };
-
     FT_New_Memory_Face(render_ctx.library, font_data, sizeof(font_data), 0, &render_ctx.face);
     FT_Set_Pixel_Sizes(render_ctx.face, 0, FONT_SIZE);
 
@@ -145,12 +160,10 @@ static void create_font(void)
     }
 
     stbrp_context packing_context;
-    stbrp_node glyph_nodes[NUM_GLYPHS];
-    stbrp_init_target(&packing_context, TEXTURE_WIDTH, TEXTURE_WIDTH, glyph_nodes, NUM_GLYPHS);
+    stbrp_node glyph_nodes[TEXTURE_WIDTH];
+    stbrp_init_target(&packing_context, TEXTURE_WIDTH, TEXTURE_WIDTH, glyph_nodes, TEXTURE_WIDTH);
     bool all_rects_packed = stbrp_pack_rects(&packing_context, render_ctx.glyph_rects, NUM_GLYPHS);
 
-    u8 buffer[TEXTURE_SIZE];
-    memset(buffer, 0, TEXTURE_SIZE);
 
     i32 num_packed = 0;
     for (i32 glyph = GLYPH_START; glyph <= GLYPH_END; glyph++)
@@ -202,7 +215,7 @@ static void create_shader_program_text()
     glDetachShader(render_ctx.programs[PROGRAM_TEXT], frag);
     glDeleteShader(vert);
     glDeleteShader(frag);
-    glUniform1i(glGetUniformLocation(render_ctx.programs[PROGRAM_TEXT], "glyphBitmap"), render_ctx.textures[TEXTURE_GLYPH_BITMAP]);
+    glUniform1i(glGetUniformLocation(render_ctx.programs[PROGRAM_TEXT], "glyphBitmap"), GL_TEXTURE0);
     glUniformBlockBinding(render_ctx.programs[PROGRAM_TEXT], glGetUniformBlockIndex(render_ctx.programs[PROGRAM_TEXT], "Window"), UBO_INDEX_WINDOW);
 }
 
@@ -229,6 +242,7 @@ static void create_shader_program_rect()
     glDetachShader(render_ctx.programs[PROGRAM_RECT], frag);
     glDeleteShader(vert);
     glDeleteShader(frag);
+    glUniform1i(glGetUniformLocation(render_ctx.programs[PROGRAM_RECT], "spriteTextures"), GL_TEXTURE0);
     glUniformBlockBinding(render_ctx.programs[PROGRAM_RECT], glGetUniformBlockIndex(render_ctx.programs[PROGRAM_RECT], "Window"), UBO_INDEX_WINDOW);
 }
 
@@ -280,7 +294,7 @@ static void create_shader_program_screen()
     glDetachShader(render_ctx.programs[PROGRAM_SCREEN], frag);
     glDeleteShader(vert);
     glDeleteShader(frag);
-    glUniform1i(glGetUniformLocation(render_ctx.programs[PROGRAM_SCREEN], "screenTex"), render_ctx.textures[TEXTURE_FBO]);
+    glUniform1i(glGetUniformLocation(render_ctx.programs[PROGRAM_SCREEN], "screenTex"), GL_TEXTURE0);
 }
 
 static void create_shader_programs(void)
@@ -322,16 +336,19 @@ static void create_vertex_arrays(void)
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), (void*)0);
     glEnableVertexAttribArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, render_ctx.vbos[VBO_RECT]);
-    glBufferData(GL_ARRAY_BUFFER, MAX_NUM_ENTITIES * 5 * sizeof(GLfloat), NULL, GL_STATIC_DRAW);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (void*)0);
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (void*)(2 * sizeof(GLfloat)));
-    glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (void*)(4 * sizeof(GLfloat)));
+    glBufferData(GL_ARRAY_BUFFER, MAX_NUM_ENTITIES * 9 * sizeof(GLfloat), NULL, GL_STATIC_DRAW);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 9 * sizeof(GLfloat), (void*)0);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 9 * sizeof(GLfloat), (void*)(2 * sizeof(GLfloat)));
+    glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, 9 * sizeof(GLfloat), (void*)(4 * sizeof(GLfloat)));
+    glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, 9 * sizeof(GLfloat), (void*)(8 * sizeof(GLfloat)));
     glEnableVertexAttribArray(1);
     glEnableVertexAttribArray(2);
     glEnableVertexAttribArray(3);
+    glEnableVertexAttribArray(4);
     glVertexAttribDivisor(1, 1);
     glVertexAttribDivisor(2, 1);
     glVertexAttribDivisor(3, 1);
+    glVertexAttribDivisor(4, 1);
 
     glBindVertexArray(render_ctx.vaos[VAO_CIRCLE]);
     glBindBuffer(GL_ARRAY_BUFFER, render_ctx.vbos[VBO_QUAD]);
@@ -373,6 +390,172 @@ static void create_framebuffer(void)
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, render_ctx.rbo);
 }
 
+void animation_init(Animation* animation, AnimationType type)
+{
+    animation->type = type;
+    animation->duration = 0;
+    animation->frame = 0;
+}
+
+void animation_update(Animation* animation, f64 dt)
+{
+    AnimationData* data = render_ctx.animations + animation->type;
+    animation->duration += dt;
+    if (animation->duration > data->frames[animation->frame].duration)
+    {
+        animation->duration = fmod(animation->duration, data->frames[animation->frame].duration);
+        animation->frame = (animation->frame + 1) % data->num_frames;
+    }
+}
+
+static void upload_spritesheet(AnimationData* animation_data, JsonObject* root, stbrp_rect* rect)
+{
+    JsonValue* meta = json_object_get_value(root, "meta");
+    assert(meta);
+    assert(json_value_get_type(meta) == JTYPE_OBJECT);
+
+    JsonObject* meta_object = json_value_get_object(meta);
+    assert(meta_object);
+
+    JsonValue* image = json_object_get_value(meta_object, "image");
+    assert(image);
+    assert(json_value_get_type(image) == JTYPE_STRING);
+
+    const char* file_name = json_value_get_string(image);
+    i32 img_width, img_height, img_channels;
+    u8* img_data = stbi_load(file_name, &img_width, &img_height, &img_channels, 4);
+    log_assert(img_data, "Could not load img %s", file_name);
+    assert(img_width == rect->w);
+    assert(img_height == rect->h);
+
+    glTexSubImage2D(GL_TEXTURE_2D, 0, rect->x, rect->y, rect->w, rect->h, GL_RGBA, GL_UNSIGNED_BYTE, img_data);
+
+    stbi_image_free(img_data);
+
+    JsonValue* frames = json_object_get_value(root, "frames");
+    assert(frames);
+    assert(json_value_get_type(frames) == JTYPE_OBJECT);
+
+    JsonObject* frames_object = json_value_get_object(frames);
+    assert(frames_object);
+
+    animation_data->num_frames = json_object_length(frames_object);
+    assert(animation_data->num_frames < MAX_NUM_FRAMES);
+
+    for (i32 frame_idx = 0; frame_idx < animation_data->num_frames; frame_idx++)
+    {
+        char frame_key[16];
+        snprintf(frame_key, sizeof(frame_key), "%d", frame_idx);
+
+        JsonValue* frame = json_object_get_value(frames_object, frame_key);
+        log_assert(frame, "Could not parse frame %d. Frame keys should be numbered starting from 0", frame);
+        assert(json_value_get_type(frame) == JTYPE_OBJECT);
+
+        JsonObject* frame_object = json_value_get_object(frame);
+        assert(frame_object);
+
+        JsonValue* duration = json_object_get_value(frame_object, "duration");
+        assert(duration);
+        assert(json_value_get_type(duration) == JTYPE_INT);
+
+        i32 ms = json_value_get_int(duration);
+        animation_data->frames[frame_idx].duration = (f64)ms / 1000.0;
+
+        JsonValue* frame_uv = json_object_get_value(frame_object, "frame");
+        assert(frame_uv);
+        assert(json_value_get_type(frame_uv) == JTYPE_OBJECT);
+
+        JsonObject* frame_uv_object = json_value_get_object(frame_uv);
+        assert(frame_uv_object);
+
+        JsonValue* x_value = json_object_get_value(frame_uv_object, "x");
+        JsonValue* y_value = json_object_get_value(frame_uv_object, "y");
+        JsonValue* w_value = json_object_get_value(frame_uv_object, "w");
+        JsonValue* h_value = json_object_get_value(frame_uv_object, "h");
+        assert(x_value && json_value_get_type(x_value));
+        assert(y_value && json_value_get_type(y_value));
+        assert(w_value && json_value_get_type(w_value));
+        assert(h_value && json_value_get_type(h_value));
+        i32 x = json_value_get_int(x_value);
+        i32 y = json_value_get_int(y_value);
+        i32 w = json_value_get_int(w_value);
+        i32 h = json_value_get_int(h_value);
+
+        animation_data->frames[frame_idx].u = (f32)(rect->x + x) / TEXTURE_WIDTH;
+        animation_data->frames[frame_idx].v = (f32)(rect->x + y) / TEXTURE_WIDTH;
+        animation_data->frames[frame_idx].w = (f32)w / TEXTURE_WIDTH;
+        animation_data->frames[frame_idx].h = (f32)h / TEXTURE_WIDTH;
+    }
+}
+
+static void parse_spritesheet(JsonObject* root, stbrp_rect* rect)
+{
+    JsonValue* meta = json_object_get_value(root, "meta");
+    assert(meta);
+    assert(json_value_get_type(meta) == JTYPE_OBJECT);
+
+    JsonObject* meta_object = json_value_get_object(meta);
+    assert(meta_object);
+
+    JsonValue* size = json_object_get_value(meta_object, "size");
+    assert(size);
+    assert(json_value_get_type(size) == JTYPE_OBJECT);
+
+    JsonObject* size_object = json_value_get_object(size);
+    assert(size_object);
+
+    JsonValue* img_width = json_object_get_value(size_object, "w");
+    assert(img_width);
+    assert(json_value_get_type(img_width) == JTYPE_INT);
+
+    JsonValue* img_height = json_object_get_value(size_object, "h");
+    assert(img_height);
+    assert(json_value_get_type(img_height) == JTYPE_INT);
+
+    rect->w = json_value_get_int(img_width);
+    rect->h = json_value_get_int(img_height);
+}
+
+static void create_sprite_textures(void)
+{
+    AnimationData* animations = render_ctx.animations;
+    stbrp_context packing_context;
+    JsonObject* animation_configs[NUM_ANIMATIONS];
+    stbrp_rect texture_rects[NUM_ANIMATIONS];
+    stbrp_node texture_nodes[TEXTURE_WIDTH];
+
+    animation_configs[ANIMATION_SOUL] = json_read("assets/sprites/soul.json");
+
+    for (i32 anim = 0; anim < NUM_ANIMATIONS; anim++)
+    {
+        JsonObject* root = animation_configs[anim];
+        stbrp_rect* rect = texture_rects + anim;
+        assert(root);
+        parse_spritesheet(root, rect);
+    }
+
+    stbrp_init_target(&packing_context, TEXTURE_WIDTH, TEXTURE_WIDTH, texture_nodes, TEXTURE_WIDTH);
+    bool all_rects_packed = stbrp_pack_rects(&packing_context, texture_rects, NUM_ANIMATIONS);
+    log_assert(all_rects_packed, "Could not pack all the textures");
+
+    glBindTexture(GL_TEXTURE_2D, render_ctx.textures[TEXTURE_SPRITES]);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, TEXTURE_WIDTH, TEXTURE_WIDTH, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    for (i32 anim = 0; anim < NUM_ANIMATIONS; anim++)
+    {
+        AnimationData* animation_data = render_ctx.animations + anim;
+        JsonObject* root = animation_configs[anim];
+        stbrp_rect* rect = texture_rects + anim;
+        upload_spritesheet(animation_data, root, rect);
+    }
+
+    for (i32 i = 0; i < NUM_ANIMATIONS; i++)
+        json_object_destroy(animation_configs[i]);
+}
+
 void render_init(void)
 {
     for (i32 i = 0; i < NUM_PROGRAMS; i++)
@@ -389,6 +572,7 @@ void render_init(void)
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);  
 
     create_font();
+    create_sprite_textures();
     create_framebuffer();
     create_window_ubo();
     create_shader_programs();
@@ -443,16 +627,22 @@ void render_text_ex(char* text, f32 x, f32 y, f32 scale, Color color)
 
 void render_text(char* text, f32 x, f32 y)
 {
-    render_text_ex(text, x, y, 1.0f, (Color){0.0f, 0.0f, 0.0f, 1.0f});
+    render_text_ex(text, x, y, 1.0f, (Color){1.0f, 1.0f, 1.0f, 1.0f});
 }
 
 static GLfloat* add_entity_to_buffer(GLfloat* buffer, Entity* entity)
 {
+    Animation* animation = &entity->animation;
+    AnimationData* data = render_ctx.animations + animation->type;
     buffer[0] = entity->position.x;
     buffer[1] = entity->position.y;
     buffer[2] = entity->size.x;
     buffer[3] = entity->size.y;
-    buffer[4] = fmod(entity->rotation, 2 * M_PI);
+    buffer[4] = data->frames[animation->frame].u;
+    buffer[5] = data->frames[animation->frame].v;
+    buffer[6] = data->frames[animation->frame].w;
+    buffer[7] = data->frames[animation->frame].h;
+    buffer[8] = fmod(entity->rotation, 2 * PI);
     return buffer + RECT_VERTEX_LENGTH;
 }
 
@@ -472,6 +662,7 @@ void render_entities(void)
     glUseProgram(render_ctx.programs[PROGRAM_RECT]);
     glBindVertexArray(render_ctx.vaos[VAO_RECT]);
     glBindBuffer(GL_ARRAY_BUFFER, render_ctx.vbos[VBO_RECT]);
+    glBindTexture(GL_TEXTURE_2D, render_ctx.textures[TEXTURE_SPRITES]);
     glBufferSubData(GL_ARRAY_BUFFER, 0, num_entities * RECT_VERTEX_LENGTH * sizeof(GLfloat), render_ctx.rect_vertex_buffer);
     glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, num_entities);
 }
@@ -518,12 +709,15 @@ void render()
     if (global_ctx.draw_hitboxes)
         render_entity_hitboxes();
 
+    render_text("Im going to kill myself", 100.0f, 200.0f);
+
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glViewport(0, 0, global_ctx.window_width, global_ctx.window_height);
     glClear(GL_COLOR_BUFFER_BIT);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glUseProgram(render_ctx.programs[PROGRAM_SCREEN]);
     glBindVertexArray(render_ctx.vaos[VAO_SCREEN]);
+    glBindBuffer(GL_ARRAY_BUFFER, render_ctx.vbos[VBO_SCREEN]);
     glBindTexture(GL_TEXTURE_2D, render_ctx.textures[TEXTURE_FBO]);
     glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 }

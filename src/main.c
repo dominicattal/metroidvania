@@ -7,7 +7,7 @@ typedef struct {
 } WindowContext;
 
 GlobalContext global_ctx;
-WindowContext window_ctx;
+static WindowContext window_ctx;
 
 bool key_pressed(i32 key)
 {
@@ -80,18 +80,18 @@ int main()
     render_init();
     game_init();
 
-    global_ctx.dt = 1.0 / 60.0;
+    f64 dt = 1.0 / 60.0;
     global_ctx.time = 0;
 
     while (!glfwWindowShouldClose(window_ctx.window))
     {
-        game_update();
+        game_update(dt);
         render();
 
         glfwSwapBuffers(window_ctx.window);
         glfwPollEvents();
 
-        global_ctx.time += global_ctx.dt;
+        global_ctx.time += dt;
     }
     glfwTerminate();
 }

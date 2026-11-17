@@ -5,5 +5,6 @@
 #include "util/log.h"
 #include "util/linalg.h"
 #include "util/rand.h"
+#include "util/json.h"
 
 #endif

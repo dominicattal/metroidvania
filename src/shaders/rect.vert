@@ -3,7 +3,8 @@
 layout (location = 0) in vec2 inPosition;
 layout (location = 1) in vec2 inOffset;
 layout (location = 2) in vec2 inSize;
-layout (location = 3) in float inRotation;
+layout (location = 3) in vec4 inUV;
+layout (location = 4) in float inRotation;
 
 layout (std140) uniform Window {
     vec2 resolution;
@@ -14,7 +15,8 @@ out vec2 TexCoord;
 
 void main()
 {
-    TexCoord = inPosition;
+    TexCoord.x = inUV.x + (0.5f + inPosition.x) * inUV.z;
+    TexCoord.y = inUV.y + (0.5f - inPosition.y) * inUV.w;
     float x = inSize.x * inPosition.x * cos(inRotation) - inSize.y * inPosition.y * sin(inRotation);
     float y = inSize.x * inPosition.x * sin(inRotation) + inSize.y * inPosition.y * cos(inRotation);
     gl_Position = vec4(

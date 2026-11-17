@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#define PI 3.1415926535
+
 typedef uint8_t   u8;
 typedef int32_t   i32;
 typedef int64_t   i64;

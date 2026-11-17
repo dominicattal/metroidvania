@@ -2,9 +2,7 @@
 #include <time.h>
 #include <stdlib.h>
 #include <string.h>
-#include <libgen.h>
 #include <sys/stat.h>
-#include <pthread.h>
 #include <stdarg.h>
 
 static int level = DEBUG;
