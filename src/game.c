@@ -78,7 +78,7 @@ void game_update(f64 dt)
     player->velocity = VEC2_ZERO;
 
     if (key_pressed(GLFW_KEY_SPACE))
-        speed = 60.0f;
+        speed = 150.0f;
     if (key_pressed(GLFW_KEY_D))
         player->velocity.x += 1.0f;
     if (key_pressed(GLFW_KEY_A))

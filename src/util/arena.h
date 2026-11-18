@@ -2,6 +2,7 @@
 #define ARENA_H
 
 #include "type.h"
+#include <stddef.h>
 
 typedef struct {
     void* instances;

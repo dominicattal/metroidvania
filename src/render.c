@@ -709,8 +709,6 @@ void render()
     if (global_ctx.draw_hitboxes)
         render_entity_hitboxes();
 
-    render_text("Im going to kill myself", 100.0f, 200.0f);
-
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glViewport(0, 0, global_ctx.window_width, global_ctx.window_height);
     glClear(GL_COLOR_BUFFER_BIT);

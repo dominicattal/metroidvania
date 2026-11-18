@@ -74,6 +74,7 @@ void animation_init(Animation* animation, AnimationType type);
 void animation_update(Animation* animation, f64 dt);
 
 void audio_init(void);
+void audio_update(void);
 void audio_play(Sound sound);
 
 void render_init(void);

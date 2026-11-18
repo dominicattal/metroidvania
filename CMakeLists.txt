@@ -11,6 +11,7 @@ add_executable(metroid
     ${CMAKE_HOME_DIRECTORY}/src/main.c
     ${CMAKE_HOME_DIRECTORY}/src/game.c
     ${CMAKE_HOME_DIRECTORY}/src/render.c
+    ${CMAKE_HOME_DIRECTORY}/src/audio.c
     ${CMAKE_HOME_DIRECTORY}/src/util/log.c
     ${CMAKE_HOME_DIRECTORY}/src/util/arena.c
     ${CMAKE_HOME_DIRECTORY}/src/util/json.c

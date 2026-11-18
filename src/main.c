@@ -77,16 +77,23 @@ int main()
     glViewport(0, 0, global_ctx.window_width, global_ctx.window_height);
     glfwSwapInterval(1);
 
+    audio_init();
     render_init();
     game_init();
 
     f64 dt = 1.0 / 60.0;
+    f64 next_update_time = 0;
     global_ctx.time = 0;
 
     while (!glfwWindowShouldClose(window_ctx.window))
     {
-        game_update(dt);
+        if (global_ctx.time > next_update_time)
+        {
+            game_update(dt);
+            next_update_time += dt;
+        }
         render();
+        audio_update();
 
         glfwSwapBuffers(window_ctx.window);
         glfwPollEvents();
