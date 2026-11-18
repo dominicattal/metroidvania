@@ -10,10 +10,11 @@
 #define RESOLUTION_X 1920
 #define RESOLUTION_Y 1080
 #define MAX_NUM_PROJECTILES 10000
+#define MAX_NUM_WALLS 100
 #define MAX_NUM_ENEMIES 10
 
 // add 1 for the player
-#define MAX_NUM_ENTITIES (MAX_NUM_PROJECTILES + MAX_NUM_ENEMIES + 1)
+#define MAX_NUM_ENTITIES (MAX_NUM_PROJECTILES + MAX_NUM_ENEMIES + MAX_NUM_WALLS + 1)
 
 typedef enum {
     SOUND_TEST,
@@ -22,13 +23,15 @@ typedef enum {
 
 typedef enum {
     ANIMATION_SOUL,
-    NUM_ANIMATIONS
+    NUM_ANIMATIONS,
+    ANIMATION_SOLID_COLOR
 } AnimationType;
 
 typedef enum {
-    FLAG_RECT_HITBOX = 1 << 0,
-    FLAG_EXPIRE      = 1 << 1,
-    FLAG_DELETE      = 1 << 2,
+    FLAG_RECT_HITBOX     = 1 << 0,
+    FLAG_EXPIRE          = 1 << 1,
+    FLAG_DELETE          = 1 << 2,
+    FLAG_COLLIDE_EXPIRE  = 1 << 3,
 } EntityFlag;
 
 typedef struct {
@@ -56,6 +59,7 @@ typedef struct {
     i32 window_width;
     i32 window_height;
 
+    Arena wall_arena;
     Arena projectile_arena;
 
     Entity player;
@@ -63,6 +67,7 @@ typedef struct {
     f64 time;
 
     bool draw_hitboxes;
+    bool draw_entities;
 
 } GlobalContext;
 

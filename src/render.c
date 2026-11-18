@@ -17,7 +17,7 @@
 #define MAX_TEXT_SIZE 1024
 #define MAX_NUM_FRAMES 8
 
-#define RECT_VERTEX_LENGTH   9
+#define RECT_VERTEX_LENGTH   13
 #define CIRCLE_VERTEX_LENGTH 3
 
 typedef enum {
@@ -83,6 +83,10 @@ typedef struct {
     // max number of objects in arena + player
     GLfloat rect_vertex_buffer[MAX_NUM_ENTITIES * RECT_VERTEX_LENGTH];
     GLfloat circle_vertex_buffer[MAX_NUM_ENTITIES * CIRCLE_VERTEX_LENGTH];
+
+    struct {
+        f32 u, v, w, h;
+    } solid_color;
 
     GLuint fbo;
     GLuint rbo;
@@ -336,19 +340,22 @@ static void create_vertex_arrays(void)
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), (void*)0);
     glEnableVertexAttribArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, render_ctx.vbos[VBO_RECT]);
-    glBufferData(GL_ARRAY_BUFFER, MAX_NUM_ENTITIES * 9 * sizeof(GLfloat), NULL, GL_STATIC_DRAW);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 9 * sizeof(GLfloat), (void*)0);
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 9 * sizeof(GLfloat), (void*)(2 * sizeof(GLfloat)));
-    glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, 9 * sizeof(GLfloat), (void*)(4 * sizeof(GLfloat)));
-    glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, 9 * sizeof(GLfloat), (void*)(8 * sizeof(GLfloat)));
+    glBufferData(GL_ARRAY_BUFFER, MAX_NUM_ENTITIES * 13 * sizeof(GLfloat), NULL, GL_STATIC_DRAW);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 13 * sizeof(GLfloat), (void*)0);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 13 * sizeof(GLfloat), (void*)(2 * sizeof(GLfloat)));
+    glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, 13 * sizeof(GLfloat), (void*)(4 * sizeof(GLfloat)));
+    glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, 13 * sizeof(GLfloat), (void*)(8 * sizeof(GLfloat)));
+    glVertexAttribPointer(5, 1, GL_FLOAT, GL_FALSE, 13 * sizeof(GLfloat), (void*)(12 * sizeof(GLfloat)));
     glEnableVertexAttribArray(1);
     glEnableVertexAttribArray(2);
     glEnableVertexAttribArray(3);
     glEnableVertexAttribArray(4);
+    glEnableVertexAttribArray(5);
     glVertexAttribDivisor(1, 1);
     glVertexAttribDivisor(2, 1);
     glVertexAttribDivisor(3, 1);
     glVertexAttribDivisor(4, 1);
+    glVertexAttribDivisor(5, 1);
 
     glBindVertexArray(render_ctx.vaos[VAO_CIRCLE]);
     glBindBuffer(GL_ARRAY_BUFFER, render_ctx.vbos[VBO_QUAD]);
@@ -399,6 +406,9 @@ void animation_init(Animation* animation, AnimationType type)
 
 void animation_update(Animation* animation, f64 dt)
 {
+    if (animation->type == ANIMATION_SOLID_COLOR)
+        return;
+
     AnimationData* data = render_ctx.animations + animation->type;
     animation->duration += dt;
     if (animation->duration > data->frames[animation->frame].duration)
@@ -521,7 +531,8 @@ static void create_sprite_textures(void)
     AnimationData* animations = render_ctx.animations;
     stbrp_context packing_context;
     JsonObject* animation_configs[NUM_ANIMATIONS];
-    stbrp_rect texture_rects[NUM_ANIMATIONS];
+    // add 1 for solid color
+    stbrp_rect texture_rects[NUM_ANIMATIONS+1];
     stbrp_node texture_nodes[TEXTURE_WIDTH];
 
     animation_configs[ANIMATION_SOUL] = json_read("assets/sprites/soul.json");
@@ -534,8 +545,11 @@ static void create_sprite_textures(void)
         parse_spritesheet(root, rect);
     }
 
+    texture_rects[NUM_ANIMATIONS].w = 1 + BITMAP_PADDING;
+    texture_rects[NUM_ANIMATIONS].h = 1 + BITMAP_PADDING;
+
     stbrp_init_target(&packing_context, TEXTURE_WIDTH, TEXTURE_WIDTH, texture_nodes, TEXTURE_WIDTH);
-    bool all_rects_packed = stbrp_pack_rects(&packing_context, texture_rects, NUM_ANIMATIONS);
+    bool all_rects_packed = stbrp_pack_rects(&packing_context, texture_rects, NUM_ANIMATIONS+1);
     log_assert(all_rects_packed, "Could not pack all the textures");
 
     glBindTexture(GL_TEXTURE_2D, render_ctx.textures[TEXTURE_SPRITES]);
@@ -552,12 +566,23 @@ static void create_sprite_textures(void)
         upload_spritesheet(animation_data, root, rect);
     }
 
+    stbrp_rect* rect = texture_rects + NUM_ANIMATIONS;
+    u8 white_data[] = { 0xFF, 0xFF, 0xFF, 0xFF };
+    glTexSubImage2D(GL_TEXTURE_2D, 0, rect->x, rect->y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, white_data);
+
+    render_ctx.solid_color.u = (f32)rect->x / TEXTURE_WIDTH;
+    render_ctx.solid_color.v = (f32)rect->y / TEXTURE_WIDTH;
+    render_ctx.solid_color.w = 1.0f / TEXTURE_WIDTH;
+    render_ctx.solid_color.h = 1.0f / TEXTURE_WIDTH;
+
     for (i32 i = 0; i < NUM_ANIMATIONS; i++)
         json_object_destroy(animation_configs[i]);
 }
 
 void render_init(void)
 {
+    global_ctx.draw_entities = true;
+
     for (i32 i = 0; i < NUM_PROGRAMS; i++)
         render_ctx.programs[i] = glCreateProgram();
 
@@ -630,44 +655,65 @@ void render_text(char* text, f32 x, f32 y)
     render_text_ex(text, x, y, 1.0f, (Color){1.0f, 1.0f, 1.0f, 1.0f});
 }
 
-static GLfloat* add_entity_to_buffer(GLfloat* buffer, Entity* entity)
+GLfloat* add_entity_to_buffer(GLfloat* buffer, Entity* entity)
 {
-    Animation* animation = &entity->animation;
-    AnimationData* data = render_ctx.animations + animation->type;
     buffer[0] = entity->position.x;
     buffer[1] = entity->position.y;
     buffer[2] = entity->size.x;
     buffer[3] = entity->size.y;
-    buffer[4] = data->frames[animation->frame].u;
-    buffer[5] = data->frames[animation->frame].v;
-    buffer[6] = data->frames[animation->frame].w;
-    buffer[7] = data->frames[animation->frame].h;
-    buffer[8] = fmod(entity->rotation, 2 * PI);
+
+    Animation* animation = &entity->animation;
+    if (animation->type != ANIMATION_SOLID_COLOR)
+    {
+        AnimationData* data = render_ctx.animations + animation->type;
+        buffer[4] = data->frames[animation->frame].u;
+        buffer[5] = data->frames[animation->frame].v;
+        buffer[6] = data->frames[animation->frame].w;
+        buffer[7] = data->frames[animation->frame].h;
+    }
+    else
+    {
+        buffer[4] = render_ctx.solid_color.u;
+        buffer[5] = render_ctx.solid_color.v;
+        buffer[6] = render_ctx.solid_color.w;
+        buffer[7] = render_ctx.solid_color.h;
+    }
+
+    buffer[8] = 1.0f;
+    buffer[9] = 0.0f;
+    buffer[10] = 1.0f;
+    buffer[11] = 1.0f;
+
+    buffer[12] = fmod(entity->rotation, 2 * PI);
+
     return buffer + RECT_VERTEX_LENGTH;
+}
+
+GLfloat* add_arena_to_buffer(GLfloat* buffer, Arena* arena)
+{
+    for (i32 i = 0; i < arena->size; i++)
+        buffer = add_entity_to_buffer(buffer, arena_at(arena, i));
+    return buffer;
 }
 
 void render_entities(void)
 {
-    Arena* arena = &global_ctx.projectile_arena;
     GLfloat* buffer = render_ctx.rect_vertex_buffer;
 
-    for (i32 i = 0; i < arena->size; i++)
-        buffer = add_entity_to_buffer(buffer, arena_at(arena, i));
-
+    buffer = add_arena_to_buffer(buffer, &global_ctx.projectile_arena);
+    buffer = add_arena_to_buffer(buffer, &global_ctx.wall_arena);
     buffer = add_entity_to_buffer(buffer, &global_ctx.player);
 
-    // render each entity in arena + player
-    i32 num_entities = arena->size + 1;
-
+    i32 num_entities = (buffer - render_ctx.rect_vertex_buffer) / RECT_VERTEX_LENGTH;
     glUseProgram(render_ctx.programs[PROGRAM_RECT]);
     glBindVertexArray(render_ctx.vaos[VAO_RECT]);
     glBindBuffer(GL_ARRAY_BUFFER, render_ctx.vbos[VBO_RECT]);
     glBindTexture(GL_TEXTURE_2D, render_ctx.textures[TEXTURE_SPRITES]);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, num_entities * RECT_VERTEX_LENGTH * sizeof(GLfloat), render_ctx.rect_vertex_buffer);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, (buffer - render_ctx.rect_vertex_buffer) * sizeof(GLfloat), render_ctx.rect_vertex_buffer);
     glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, num_entities);
 }
 
-static GLfloat* add_entity_hitbox_to_buffer(GLfloat* buffer, Entity* entity)
+static GLfloat* add_circle_hitbox_to_buffer(GLfloat* buffer, Entity* entity)
 {
     buffer[0] = entity->position.x;
     buffer[1] = entity->position.y;
@@ -675,22 +721,65 @@ static GLfloat* add_entity_hitbox_to_buffer(GLfloat* buffer, Entity* entity)
     return buffer + CIRCLE_VERTEX_LENGTH;
 }
 
+static GLfloat* add_rect_hitbox_to_buffer(GLfloat* buffer, Entity* entity)
+{
+    buffer[0] = entity->position.x;
+    buffer[1] = entity->position.y;
+    buffer[2] = entity->hitbox_size.x;
+    buffer[3] = entity->hitbox_size.y;
+    buffer[4] = render_ctx.solid_color.u;
+    buffer[5] = render_ctx.solid_color.v;
+    buffer[6] = render_ctx.solid_color.w;
+    buffer[7] = render_ctx.solid_color.h;
+    buffer[8] = 1.0f;
+    buffer[9] = 1.0f;
+    buffer[10] = 1.0f;
+    buffer[11] = 1.0f;
+    buffer[12] = fmod(entity->rotation, 2 * PI);
+    return buffer + RECT_VERTEX_LENGTH;
+}
+
+static void add_hitboxes_to_buffer(GLfloat** circle_buffer_ptr, GLfloat** rect_buffer_ptr, Arena* arena)
+{
+    GLfloat* circle_buffer = *circle_buffer_ptr;
+    GLfloat* rect_buffer = *rect_buffer_ptr;
+
+    for (i32 i = 0; i < arena->size; i++)
+    {
+        Entity* entity = arena_at(arena, i);
+        if (flag_test(entity, FLAG_RECT_HITBOX))
+            rect_buffer = add_rect_hitbox_to_buffer(rect_buffer, entity);
+        else
+            circle_buffer = add_circle_hitbox_to_buffer(circle_buffer, entity);
+    }
+
+    *circle_buffer_ptr = circle_buffer;
+    *rect_buffer_ptr = rect_buffer;
+}
+
 void render_entity_hitboxes(void)
 {
-    Arena* arena = &global_ctx.projectile_arena;
-    GLfloat* buffer = render_ctx.circle_vertex_buffer;
-    for (i32 i = 0; i < arena->size; i++)
-        buffer = add_entity_hitbox_to_buffer(buffer, arena_at(arena, i));
+    GLfloat* circle_buffer = render_ctx.circle_vertex_buffer;
+    GLfloat* rect_buffer = render_ctx.rect_vertex_buffer;
 
-    buffer = add_entity_hitbox_to_buffer(buffer, &global_ctx.player);
+    add_hitboxes_to_buffer(&circle_buffer, &rect_buffer, &global_ctx.projectile_arena);
+    add_hitboxes_to_buffer(&circle_buffer, &rect_buffer, &global_ctx.wall_arena);
 
-    // render each entity in arena + player
-    i32 num_entities = arena->size + 1;
+    rect_buffer = add_rect_hitbox_to_buffer(rect_buffer, &global_ctx.player);
 
+    i32 num_entities = (circle_buffer - render_ctx.circle_vertex_buffer) / CIRCLE_VERTEX_LENGTH;
     glUseProgram(render_ctx.programs[PROGRAM_CIRCLE]);
     glBindVertexArray(render_ctx.vaos[VAO_CIRCLE]);
     glBindBuffer(GL_ARRAY_BUFFER, render_ctx.vbos[VBO_CIRCLE]);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, num_entities * CIRCLE_VERTEX_LENGTH * sizeof(GLfloat), render_ctx.circle_vertex_buffer);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, (circle_buffer - render_ctx.circle_vertex_buffer) * sizeof(GLfloat), render_ctx.circle_vertex_buffer);
+    glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, num_entities);
+
+    num_entities = (rect_buffer - render_ctx.rect_vertex_buffer) / RECT_VERTEX_LENGTH;
+    glUseProgram(render_ctx.programs[PROGRAM_RECT]);
+    glBindVertexArray(render_ctx.vaos[VAO_RECT]);
+    glBindBuffer(GL_ARRAY_BUFFER, render_ctx.vbos[VBO_RECT]);
+    glBindTexture(GL_TEXTURE_2D, render_ctx.textures[TEXTURE_SPRITES]);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, (rect_buffer - render_ctx.rect_vertex_buffer) * sizeof(GLfloat), render_ctx.rect_vertex_buffer);
     glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, num_entities);
 }
 
@@ -705,7 +794,8 @@ void render()
     glClear(GL_COLOR_BUFFER_BIT);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
-    render_entities();
+    if (global_ctx.draw_entities)
+        render_entities();
     if (global_ctx.draw_hitboxes)
         render_entity_hitboxes();
 
