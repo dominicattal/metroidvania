@@ -11,10 +11,10 @@
 #define RESOLUTION_Y 1080
 #define MAX_NUM_PROJECTILES 10000
 #define MAX_NUM_WALLS 100
-#define MAX_NUM_ENEMIES 10
+#define MAX_NUM_ENTITIES 100
 
 // add 1 for the player
-#define MAX_NUM_ENTITIES (MAX_NUM_PROJECTILES + MAX_NUM_ENEMIES + MAX_NUM_WALLS + 1)
+#define MAX_NUM_RECTS (MAX_NUM_PROJECTILES + MAX_NUM_ENTITIES + MAX_NUM_WALLS + 1)
 
 typedef enum {
     SOUND_TEST,
@@ -32,9 +32,17 @@ typedef enum {
     FLAG_EXPIRE          = 1 << 1, // Whether the entity expires using expire_time
     FLAG_DELETE          = 1 << 2, // Whether the entity should be deleted next frame
     FLAG_COLLIDE_DELETE  = 1 << 3, // Whether the entity should be deleted after collision
-} EntityFlag;
+    FLAG_GRAZED          = 1 << 4, // Whether a projectile has been grazed
+} Flag;
 
 typedef enum {
+    UI_MAIN_MENU,
+    UI_GAME,
+    NUM_UIS
+} UI;
+
+typedef enum {
+    SCREEN_NONE,
     SCREEN_1,
     SCREEN_2,
     NUM_SCREENS
@@ -54,9 +62,19 @@ typedef struct {
 
 typedef struct {
     Animation animation;
-    // Entities are drawn with position at their center
     vec2 position;
     vec2 prev_position;
+    vec2 velocity;
+    vec2 size;
+    f64 rotation;
+    u32 flags;
+    f64 hitbox_radius;
+} Entity;
+
+typedef struct {
+    Animation animation;
+    // Entities are drawn with position at their center
+    vec2 position;
     vec2 velocity;
     vec2 size;
     f64 expire_time;
@@ -66,29 +84,40 @@ typedef struct {
         f64 hitbox_radius;
         vec2 hitbox_size;
     };
-} Entity;
+} Projectile;
 
-typedef Entity Projectile;
+typedef struct {
+    Entity* entity;
+    i32 lives;
+    i32 graze;
+    f32 graze_hitbox_radius;
+} Player;
 
 typedef struct {
 
     GLFWwindow* window;
     GLFWmonitor* monitor;
+    const GLFWvidmode* mode;
+
     i32 window_width;
     i32 window_height;
+    bool fullscreen;
 
     Arena wall_arena;
+    Arena entity_arena;
     Arena projectile_arena;
 
-    Entity player;
+    Player player;
 
     Screen screen;
+    UI ui;
 
     f64 next_create_time;
 
     f64 time;
     f64 next_update_time;
 
+    bool key_pressed[GLFW_KEY_LAST+1];
     bool draw_hitboxes;
     bool draw_entities;
 
@@ -96,6 +125,7 @@ typedef struct {
 
 extern GlobalContext global_ctx;
 
+bool key_down(i32 key);
 bool key_pressed(i32 key);
 
 void animation_init(Animation* animation, AnimationType type);
@@ -106,20 +136,30 @@ void audio_update(void);
 void audio_play(Sound sound);
 
 void render_init(void);
+void render_cleanup(void);
 void render(void);
+void render_rect(vec2 pos, vec2 size, Color color);
+void render_rect_ex(vec2 pos, vec2 size, Color color, Animation* animation);
+f32  calculate_text_height(f32 scale);
+f32  calculate_text_width(char* text, f32 scale);
 void render_text(char* text, f32 x, f32 y);
 void render_text_ex(char* text, f32 x, f32 y, f32 scale, Color color);
 void render_entities(void);
 
-bool flag_test(Entity* entity, EntityFlag flag);
-void flag_set(Entity* entity, EntityFlag flag);
-void flag_clear(Entity* entity, EntityFlag flag);
-void flag_toggle(Entity* entity, EntityFlag flag);
+bool flag_test(u32* flags, Flag flag);
+void flag_set(u32* flags, Flag flag);
+void flag_clear(u32* flags, Flag flag);
+void flag_toggle(u32* flags, Flag flag);
 
 void game_init(void);
 void game_update(f64 dt);
 
 void screen_load(Screen screen);
 void screen_update(f64 dt);
+
+void ui_init(void);
+void ui_load(UI ui);
+void ui_update(f64 dt);
+void ui_draw(void);
 
 #endif

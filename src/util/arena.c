@@ -41,6 +41,13 @@ void* arena_at(Arena* arena, i32 dense_idx)
     return (u8*)arena->instances + arena->dense[dense_idx] * arena->instance_size;
 }
 
+void* arena_dummy(Arena* arena)
+{
+    void* dummy = (u8*)arena->instances + arena->capacity * arena->instance_size;
+    memset(dummy, 0, arena->instance_size);
+    return dummy;
+}
+
 i32 arena_id(Arena* arena, i32 dense_idx)
 {
     return arena->dense[dense_idx];

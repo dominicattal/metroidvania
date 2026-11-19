@@ -32,6 +32,10 @@ void*   arena_deref(Arena* arena, i32 id);
 // Can be used to iterate through valid instances in the arena.
 void*   arena_at(Arena* arena, i32 idx);
 
+// Returns a dummy instance that can be safetly derefenced but is not considered
+// in the arena.
+void*   arena_dummy(Arena* arena);
+
 // Gets the identifier / sparse_idx from the dense_idx
 i32     arena_id(Arena* arena, i32 idx);
 

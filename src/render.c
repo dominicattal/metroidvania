@@ -58,6 +58,20 @@ typedef enum {
 } Textures;
 
 typedef struct {
+    vec2 position;
+    vec2 size;
+    vec2 uv_offset;
+    vec2 uv_size;
+    Color color;
+    f32 rotation;
+} RectVertex;
+
+typedef struct {
+    vec2 position;
+    f32 radius;
+} CircleVertex;
+
+typedef struct {
     i32 num_frames;
     struct {
         f32 u, v, w, h;
@@ -81,8 +95,8 @@ typedef struct {
     AnimationData animations[NUM_ANIMATIONS];
 
     // max number of objects in arena + player
-    GLfloat rect_vertex_buffer[MAX_NUM_ENTITIES * RECT_VERTEX_LENGTH];
-    GLfloat circle_vertex_buffer[MAX_NUM_ENTITIES * CIRCLE_VERTEX_LENGTH];
+    GLfloat rect_vertex_buffer[MAX_NUM_RECTS * RECT_VERTEX_LENGTH];
+    GLfloat circle_vertex_buffer[MAX_NUM_RECTS * CIRCLE_VERTEX_LENGTH];
 
     struct {
         f32 u, v, w, h;
@@ -340,7 +354,7 @@ static void create_vertex_arrays(void)
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), (void*)0);
     glEnableVertexAttribArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, render_ctx.vbos[VBO_RECT]);
-    glBufferData(GL_ARRAY_BUFFER, MAX_NUM_ENTITIES * 13 * sizeof(GLfloat), NULL, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, MAX_NUM_RECTS * 13 * sizeof(GLfloat), NULL, GL_STATIC_DRAW);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 13 * sizeof(GLfloat), (void*)0);
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 13 * sizeof(GLfloat), (void*)(2 * sizeof(GLfloat)));
     glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, 13 * sizeof(GLfloat), (void*)(4 * sizeof(GLfloat)));
@@ -362,7 +376,7 @@ static void create_vertex_arrays(void)
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), (void*)0);
     glEnableVertexAttribArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, render_ctx.vbos[VBO_CIRCLE]);
-    glBufferData(GL_ARRAY_BUFFER, MAX_NUM_ENTITIES * 3 * sizeof(GLfloat), NULL, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, MAX_NUM_RECTS * 3 * sizeof(GLfloat), NULL, GL_STATIC_DRAW);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (void*)0);
     glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (void*)(2 * sizeof(GLfloat)));
     glEnableVertexAttribArray(1);
@@ -655,14 +669,88 @@ void render_text(char* text, f32 x, f32 y)
     render_text_ex(text, x, y, 1.0f, (Color){1.0f, 1.0f, 1.0f, 1.0f});
 }
 
-GLfloat* add_entity_to_buffer(GLfloat* buffer, Entity* entity)
+f32 calculate_text_height(f32 scale)
 {
-    buffer[0] = entity->position.x;
-    buffer[1] = entity->position.y;
-    buffer[2] = entity->size.x;
-    buffer[3] = entity->size.y;
+    return scale * FONT_SIZE;
+}
 
-    Animation* animation = &entity->animation;
+f32 calculate_text_width(char* text, f32 scale)
+{
+    f32 width = 0;
+    for (i32 i = 0; i < MAX_TEXT_SIZE && text[i] != '\0'; i++)
+    {
+        if (text[i] < GLYPH_START || text[i] > GLYPH_END)
+            continue;
+
+        i32 glyph_idx = text[i] - GLYPH_START;
+
+        FT_Glyph_Metrics* metrics = render_ctx.glyph_metrics + glyph_idx;
+        stbrp_rect* rect = render_ctx.glyph_rects + glyph_idx;
+
+        width += metrics->horiAdvance * scale;
+    }
+    return width;
+}
+
+static GLfloat* add_rect_to_buffer(GLfloat* buffer, RectVertex rect)
+{
+    buffer[0]  = rect.position.x;
+    buffer[1]  = rect.position.y;
+    buffer[2]  = rect.size.x;
+    buffer[3]  = rect.size.y;
+    buffer[4]  = rect.uv_offset.x;
+    buffer[5]  = rect.uv_offset.y;
+    buffer[6]  = rect.uv_size.x;
+    buffer[7]  = rect.uv_size.y;
+    buffer[8]  = rect.color.r;
+    buffer[9]  = rect.color.g;
+    buffer[10] = rect.color.b;
+    buffer[11] = rect.color.a;
+    buffer[12] = rect.rotation;
+    return buffer + RECT_VERTEX_LENGTH;
+}
+
+static GLfloat* add_circle_to_buffer(GLfloat* buffer, CircleVertex circle)
+{
+    buffer[0] = circle.position.x;
+    buffer[1] = circle.position.y;
+    buffer[2] = circle.radius;
+    return buffer + CIRCLE_VERTEX_LENGTH;
+}
+
+void render_rect(vec2 pos, vec2 size, Color color)
+{
+    GLfloat buffer[RECT_VERTEX_LENGTH];
+    buffer[0] = pos.x + size.x / 2;
+    buffer[1] = pos.y - size.y / 2;
+    buffer[2] = size.x;
+    buffer[3] = size.y;
+    buffer[4] = render_ctx.solid_color.u;
+    buffer[5] = render_ctx.solid_color.v;
+    buffer[6] = render_ctx.solid_color.w;
+    buffer[7] = render_ctx.solid_color.h;
+    buffer[8] = color.r;
+    buffer[9] = color.g;
+    buffer[10] = color.b;
+    buffer[11] = color.a;
+    buffer[12] = 0.0f;
+
+    glUseProgram(render_ctx.programs[PROGRAM_RECT]);
+    glBindVertexArray(render_ctx.vaos[VAO_RECT]);
+    glBindBuffer(GL_ARRAY_BUFFER, render_ctx.vbos[VBO_RECT]);
+    glBindTexture(GL_TEXTURE_2D, render_ctx.textures[TEXTURE_SPRITES]);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, RECT_VERTEX_LENGTH * sizeof(GLfloat), buffer);
+    glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, 1);
+}
+
+void render_rect_ex(vec2 pos, vec2 size, Color color, Animation* animation)
+{
+    GLfloat buffer[RECT_VERTEX_LENGTH];
+    buffer[0] = pos.x + size.x / 2;
+    buffer[1] = pos.y - size.y / 2;
+    buffer[2] = size.x;
+    buffer[3] = size.y;
+
     if (animation->type != ANIMATION_SOLID_COLOR)
     {
         AnimationData* data = render_ctx.animations + animation->type;
@@ -679,56 +767,96 @@ GLfloat* add_entity_to_buffer(GLfloat* buffer, Entity* entity)
         buffer[7] = render_ctx.solid_color.h;
     }
 
-    buffer[8] = 1.0f;
-    buffer[9] = 0.0f;
-    buffer[10] = 1.0f;
-    buffer[11] = 1.0f;
+    buffer[8] = color.r;
+    buffer[9] = color.g;
+    buffer[10] = color.b;
+    buffer[11] = color.a;
 
-    buffer[12] = fmod(entity->rotation, 2 * PI);
-
-    return buffer + RECT_VERTEX_LENGTH;
-}
-
-GLfloat* add_wall_to_buffer(GLfloat* buffer, Wall* wall)
-{
-    buffer[0] = wall->position.x + wall->size.x / 2;
-    buffer[1] = wall->position.y + wall->size.y / 2;
-    buffer[2] = wall->size.x;
-    buffer[3] = wall->size.y;
-    buffer[4] = render_ctx.solid_color.u;
-    buffer[5] = render_ctx.solid_color.v;
-    buffer[6] = render_ctx.solid_color.w;
-    buffer[7] = render_ctx.solid_color.h;
-    buffer[8] = 1.0f;
-    buffer[9] = 0.0f;
-    buffer[10] = 1.0f;
-    buffer[11] = 1.0f;
     buffer[12] = 0.0f;
 
-    return buffer + RECT_VERTEX_LENGTH;
+    glUseProgram(render_ctx.programs[PROGRAM_RECT]);
+    glBindVertexArray(render_ctx.vaos[VAO_RECT]);
+    glBindBuffer(GL_ARRAY_BUFFER, render_ctx.vbos[VBO_RECT]);
+    glBindTexture(GL_TEXTURE_2D, render_ctx.textures[TEXTURE_SPRITES]);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, RECT_VERTEX_LENGTH * sizeof(GLfloat), buffer);
+    glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, 1);
 }
 
-GLfloat* add_arena_to_buffer(GLfloat* buffer, Arena* arena)
+static void get_animation_uv(Animation* animation, vec2* uv_offset, vec2* uv_size)
 {
-    for (i32 i = 0; i < arena->size; i++)
-        buffer = add_entity_to_buffer(buffer, arena_at(arena, i));
-    return buffer;
+    if (animation->type != ANIMATION_SOLID_COLOR)
+    {
+        AnimationData* data = render_ctx.animations + animation->type;
+        uv_offset->x = data->frames[animation->frame].u;
+        uv_offset->y = data->frames[animation->frame].v;
+        uv_size->x = data->frames[animation->frame].w;
+        uv_size->y = data->frames[animation->frame].h;
+    }
+    else
+    {
+        uv_offset->x = render_ctx.solid_color.u;
+        uv_offset->y = render_ctx.solid_color.v;
+        uv_size->x = render_ctx.solid_color.w;
+        uv_size->y = render_ctx.solid_color.h;
+    }
 }
 
-void render_entities(void)
+static GLfloat* add_projectile_to_buffer(GLfloat* buffer, Projectile* proj)
+{
+    vec2 uv_offset, uv_size;
+    get_animation_uv(&proj->animation, &uv_offset, &uv_size);
+    return add_rect_to_buffer(buffer, (RectVertex) {
+                .position  = proj->position,
+                .size      = proj->size,
+                .uv_offset = uv_offset,
+                .uv_size   = uv_size,
+                .color     = (Color){1.0f, 1.0f, 1.0f, 1.0f},
+                .rotation  = fmod(proj->rotation, 2 * PI)
+            });
+}
+
+static GLfloat* add_entity_to_buffer(GLfloat* buffer, Entity* entity)
+{
+    vec2 uv_offset, uv_size;
+    get_animation_uv(&entity->animation, &uv_offset, &uv_size);
+    return add_rect_to_buffer(buffer, (RectVertex) {
+                .position  = entity->position,
+                .size      = entity->size,
+                .uv_offset = uv_offset,
+                .uv_size   = uv_size,
+                .color     = (Color){1.0f, 1.0f, 1.0f, 1.0f},
+                .rotation  = fmod(entity->rotation, 2 * PI)
+            });
+}
+
+static GLfloat* add_wall_to_buffer(GLfloat* buffer, Wall* wall)
+{
+    return add_rect_to_buffer(buffer, (RectVertex) {
+                .position  = vec2_create(wall->position.x + wall->size.x / 2, wall->position.y + wall->size.y / 2),
+                .size      = wall->size,
+                .uv_offset = vec2_create(render_ctx.solid_color.u, render_ctx.solid_color.v),
+                .uv_size   = vec2_create(render_ctx.solid_color.w, render_ctx.solid_color.h),
+                .color     = (Color){1.0f, 1.0f, 1.0f, 1.0f},
+                .rotation  = 0.0f
+            });
+}
+
+void render_game_objects(void)
 {
     Arena* arena;
     GLfloat* buffer = render_ctx.rect_vertex_buffer;
 
     arena = &global_ctx.projectile_arena;
     for (i32 i = 0; i < arena->size; i++)
-        buffer = add_entity_to_buffer(buffer, arena_at(arena, i));
+        buffer = add_projectile_to_buffer(buffer, arena_at(arena, i));
 
     arena = &global_ctx.wall_arena;
     for (i32 i = 0; i < arena->size; i++)
         buffer = add_wall_to_buffer(buffer, arena_at(arena, i));
 
-    buffer = add_entity_to_buffer(buffer, &global_ctx.player);
+    arena = &global_ctx.entity_arena;
+    for (i32 i = 0; i < arena->size; i++)
+        buffer = add_entity_to_buffer(buffer, arena_at(arena, i));
 
     i32 num_entities = (buffer - render_ctx.rect_vertex_buffer) / RECT_VERTEX_LENGTH;
     glUseProgram(render_ctx.programs[PROGRAM_RECT]);
@@ -747,12 +875,12 @@ static GLfloat* add_circle_hitbox_to_buffer(GLfloat* buffer, Entity* entity)
     return buffer + CIRCLE_VERTEX_LENGTH;
 }
 
-static GLfloat* add_rect_hitbox_to_buffer(GLfloat* buffer, Entity* entity)
+static GLfloat* add_rect_hitbox_to_buffer(GLfloat* buffer, Projectile* proj)
 {
-    buffer[0] = entity->position.x;
-    buffer[1] = entity->position.y;
-    buffer[2] = entity->hitbox_size.x;
-    buffer[3] = entity->hitbox_size.y;
+    buffer[0] = proj->position.x;
+    buffer[1] = proj->position.y;
+    buffer[2] = proj->hitbox_size.x;
+    buffer[3] = proj->hitbox_size.y;
     buffer[4] = render_ctx.solid_color.u;
     buffer[5] = render_ctx.solid_color.v;
     buffer[6] = render_ctx.solid_color.w;
@@ -761,59 +889,81 @@ static GLfloat* add_rect_hitbox_to_buffer(GLfloat* buffer, Entity* entity)
     buffer[9] = 1.0f;
     buffer[10] = 1.0f;
     buffer[11] = 1.0f;
-    buffer[12] = fmod(entity->rotation, 2 * PI);
+    buffer[12] = fmod(proj->rotation, 2 * PI);
     return buffer + RECT_VERTEX_LENGTH;
 }
 
-static void add_hitboxes_to_buffer(GLfloat** circle_buffer_ptr, GLfloat** rect_buffer_ptr, Arena* arena)
+void render_game_object_hitboxes(void)
 {
-    GLfloat* circle_buffer = *circle_buffer_ptr;
-    GLfloat* rect_buffer = *rect_buffer_ptr;
-
-    for (i32 i = 0; i < arena->size; i++)
-    {
-        Entity* entity = arena_at(arena, i);
-        if (flag_test(entity, FLAG_RECT_HITBOX))
-            rect_buffer = add_rect_hitbox_to_buffer(rect_buffer, entity);
-        else
-            circle_buffer = add_circle_hitbox_to_buffer(circle_buffer, entity);
-    }
-
-    *circle_buffer_ptr = circle_buffer;
-    *rect_buffer_ptr = rect_buffer;
-}
-
-void render_entity_hitboxes(void)
-{
+    Arena* arena;
     GLfloat* circle_buffer = render_ctx.circle_vertex_buffer;
     GLfloat* rect_buffer = render_ctx.rect_vertex_buffer;
 
-    add_hitboxes_to_buffer(&circle_buffer, &rect_buffer, &global_ctx.projectile_arena);
-    add_hitboxes_to_buffer(&circle_buffer, &rect_buffer, &global_ctx.wall_arena);
+    arena = &global_ctx.projectile_arena;
+    for (i32 i = 0; i < arena->size; i++)
+    {
+        Projectile* proj = arena_at(arena, i);
+        if (flag_test(&proj->flags, FLAG_RECT_HITBOX))
+        {
+            rect_buffer = add_rect_to_buffer(rect_buffer, (RectVertex) {
+                        .position  = proj->position,
+                        .size      = proj->hitbox_size,
+                        .uv_offset = vec2_create(render_ctx.solid_color.u, render_ctx.solid_color.v),
+                        .uv_size   = vec2_create(render_ctx.solid_color.w, render_ctx.solid_color.h),
+                        .color     = (Color){1.0f, 0.0f, 0.0f, 1.0f},
+                        .rotation  = fmod(proj->rotation, 2 * PI)
+                    });
+        }
+        else
+        {
+            circle_buffer = add_circle_to_buffer(circle_buffer, (CircleVertex) {
+                        .position = proj->position,
+                        .radius   = proj->hitbox_radius
+                    });
+        }
+    }
 
-    circle_buffer = add_circle_hitbox_to_buffer(circle_buffer, &global_ctx.player);
+    arena = &global_ctx.entity_arena;
+    for (i32 i = 0; i < arena->size; i++)
+    {
+        Entity* entity = arena_at(arena, i);
+        circle_buffer = add_circle_to_buffer(circle_buffer, (CircleVertex) {
+                        .position = entity->position,
+                        .radius   = entity->hitbox_radius
+                    });
+    }
 
-    i32 num_entities = (circle_buffer - render_ctx.circle_vertex_buffer) / CIRCLE_VERTEX_LENGTH;
+    i32 num_circles = (circle_buffer - render_ctx.circle_vertex_buffer) / CIRCLE_VERTEX_LENGTH;
     glUseProgram(render_ctx.programs[PROGRAM_CIRCLE]);
     glBindVertexArray(render_ctx.vaos[VAO_CIRCLE]);
     glBindBuffer(GL_ARRAY_BUFFER, render_ctx.vbos[VBO_CIRCLE]);
     glBufferSubData(GL_ARRAY_BUFFER, 0, (circle_buffer - render_ctx.circle_vertex_buffer) * sizeof(GLfloat), render_ctx.circle_vertex_buffer);
-    glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, num_entities);
+    glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, num_circles);
 
-    num_entities = (rect_buffer - render_ctx.rect_vertex_buffer) / RECT_VERTEX_LENGTH;
+    i32 num_rects = (rect_buffer - render_ctx.rect_vertex_buffer) / RECT_VERTEX_LENGTH;
     glUseProgram(render_ctx.programs[PROGRAM_RECT]);
     glBindVertexArray(render_ctx.vaos[VAO_RECT]);
     glBindBuffer(GL_ARRAY_BUFFER, render_ctx.vbos[VBO_RECT]);
     glBindTexture(GL_TEXTURE_2D, render_ctx.textures[TEXTURE_SPRITES]);
     glBufferSubData(GL_ARRAY_BUFFER, 0, (rect_buffer - render_ctx.rect_vertex_buffer) * sizeof(GLfloat), render_ctx.rect_vertex_buffer);
-    glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, num_entities);
+    glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, num_rects);
+}
+
+void render_cleanup(void)
+{
+    glDeleteVertexArrays(NUM_VAOS, render_ctx.vaos);
+    glDeleteBuffers(NUM_VBOS, render_ctx.vbos);
+    glDeleteBuffers(NUM_UBOS, render_ctx.ubos);
+    glDeleteTextures(NUM_TEXTURES, render_ctx.textures);
+    glDeleteRenderbuffers(1, &render_ctx.rbo);
+    glDeleteFramebuffers(1, &render_ctx.fbo);
 }
 
 void render()
 {
-    glBindBuffer(GL_UNIFORM_BUFFER, render_ctx.ubos[UBO_WINDOW]);
-    f32 time = global_ctx.time;
-    glBufferSubData(GL_UNIFORM_BUFFER, 2 * sizeof(GLfloat), sizeof(GLfloat), &time);
+    //GLfloat window_size[3] = {RESOLUTION_X, RESOLUTION_Y, global_ctx.time};
+    //glBindBuffer(GL_UNIFORM_BUFFER, render_ctx.ubos[UBO_WINDOW]);
+    //glBufferSubData(GL_UNIFORM_BUFFER, 0, 3 * sizeof(GLfloat), window_size);
 
     glBindFramebuffer(GL_FRAMEBUFFER, render_ctx.fbo);
     glViewport(0, 0, RESOLUTION_X, RESOLUTION_Y);
@@ -821,9 +971,11 @@ void render()
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
     if (global_ctx.draw_entities)
-        render_entities();
+        render_game_objects();
     if (global_ctx.draw_hitboxes)
-        render_entity_hitboxes();
+        render_game_object_hitboxes();
+
+    ui_draw();
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glViewport(0, 0, global_ctx.window_width, global_ctx.window_height);
