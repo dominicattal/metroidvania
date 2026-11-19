@@ -10,6 +10,7 @@ add_subdirectory(vendor/miniaudio)
 add_executable(metroid
     ${CMAKE_HOME_DIRECTORY}/src/main.c
     ${CMAKE_HOME_DIRECTORY}/src/game.c
+    ${CMAKE_HOME_DIRECTORY}/src/screen.c
     ${CMAKE_HOME_DIRECTORY}/src/render.c
     ${CMAKE_HOME_DIRECTORY}/src/audio.c
     ${CMAKE_HOME_DIRECTORY}/src/util/log.c
@@ -20,7 +21,7 @@ add_executable(metroid
     ${CMAKE_HOME_DIRECTORY}/vendor/glad/src/glad.c
 )
 
-target_include_directories(metroid PRIVATE vendor/glad/include vendor/stb)
+target_include_directories(metroid PRIVATE vendor/glad/include vendor/stb vendor/Nuklear)
 target_link_libraries(metroid PRIVATE glfw Freetype::Freetype miniaudio)
 
 file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/assets/)

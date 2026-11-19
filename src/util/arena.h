@@ -22,6 +22,9 @@ void    arena_init(Arena* arena, size_t instance_size, i32 capacity);
 // be safetly derefenced
 i32     arena_alloc(Arena* arena);
 
+// Set's the arena's size to 0
+void    arena_clear(Arena* arena);
+
 // Derefences an identifier returned from arena_alloc.
 void*   arena_deref(Arena* arena, i32 id);
 

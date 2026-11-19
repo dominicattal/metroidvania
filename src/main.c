@@ -1,17 +1,11 @@
 #include "context.h"
 #include <string.h>
 
-typedef struct {
-    GLFWmonitor* monitor;
-    GLFWwindow* window;
-} WindowContext;
-
 GlobalContext global_ctx;
-static WindowContext window_ctx;
 
 bool key_pressed(i32 key)
 {
-    return glfwGetKey(window_ctx.window, key) == GLFW_PRESS;
+    return glfwGetKey(global_ctx.window, key) == GLFW_PRESS;
 }
 
 void window_error_callback(int x, const char* message)
@@ -33,24 +27,29 @@ void key_callback(GLFWwindow* window, i32 key, i32 scancode, i32 action, i32 mod
 
     if (key == GLFW_KEY_F11 && action == GLFW_PRESS)
     {
-        if (window_ctx.monitor == NULL)
+        if (global_ctx.monitor == NULL)
         {
-            window_ctx.monitor = glfwGetPrimaryMonitor();
-            const GLFWvidmode* mode = glfwGetVideoMode(window_ctx.monitor);
-            glfwSetWindowMonitor(window, window_ctx.monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+            global_ctx.monitor = glfwGetPrimaryMonitor();
+            const GLFWvidmode* mode = glfwGetVideoMode(global_ctx.monitor);
+            glfwSetWindowMonitor(window, global_ctx.monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
         }
         else
         {
-            window_ctx.monitor = NULL;
+            global_ctx.monitor = NULL;
             glfwSetWindowMonitor(window, NULL, 200, 200, 640, 480, 0);
         }
     }
 
-    if (key == GLFW_KEY_F2 && action == GLFW_PRESS)
+    if (key == GLFW_KEY_F3 && action == GLFW_PRESS)
         global_ctx.draw_entities = !global_ctx.draw_entities;
 
-    if (key == GLFW_KEY_F1 && action == GLFW_PRESS)
+    if (key == GLFW_KEY_F2 && action == GLFW_PRESS)
         global_ctx.draw_hitboxes = !global_ctx.draw_hitboxes;
+
+    if (key == GLFW_KEY_1 && action == GLFW_PRESS)
+        screen_load(SCREEN_1);
+    if (key == GLFW_KEY_2 && action == GLFW_PRESS)
+        screen_load(SCREEN_2);
 }
 
 int main()
@@ -72,10 +71,10 @@ int main()
 
     global_ctx.window_width = 640;
     global_ctx.window_height = 480;
-    window_ctx.window= glfwCreateWindow(global_ctx.window_width, global_ctx.window_height, "El Game", NULL, NULL);
-    glfwMakeContextCurrent(window_ctx.window);
-    glfwSetFramebufferSizeCallback(window_ctx.window, framebuffer_size_callback);
-    glfwSetKeyCallback(window_ctx.window, key_callback);
+    global_ctx.window= glfwCreateWindow(global_ctx.window_width, global_ctx.window_height, "El Game", NULL, NULL);
+    glfwMakeContextCurrent(global_ctx.window);
+    glfwSetFramebufferSizeCallback(global_ctx.window, framebuffer_size_callback);
+    glfwSetKeyCallback(global_ctx.window, key_callback);
     gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
     glViewport(0, 0, global_ctx.window_width, global_ctx.window_height);
     glfwSwapInterval(1);
@@ -85,20 +84,19 @@ int main()
     game_init();
 
     f64 dt = 1.0 / 60.0;
-    f64 next_update_time = 0;
-    global_ctx.time = 0;
+    global_ctx.time = global_ctx.next_update_time = 0;
 
-    while (!glfwWindowShouldClose(window_ctx.window))
+    while (!glfwWindowShouldClose(global_ctx.window))
     {
-        if (global_ctx.time > next_update_time)
+        if (global_ctx.time > global_ctx.next_update_time)
         {
             game_update(dt);
-            next_update_time += dt;
+            global_ctx.next_update_time += dt;
         }
         render();
         audio_update();
 
-        glfwSwapBuffers(window_ctx.window);
+        glfwSwapBuffers(global_ctx.window);
         glfwPollEvents();
 
         global_ctx.time += dt;

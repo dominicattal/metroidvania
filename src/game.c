@@ -2,12 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef struct {
-    f64 next_create_time;
-} GameContext;
-
 extern GlobalContext global_ctx;
-static GameContext game_ctx;
 
 bool flag_test(Entity* entity, EntityFlag flag)
 {
@@ -35,17 +30,14 @@ void game_init(void)
     arena_init(&global_ctx.projectile_arena, sizeof(Entity), MAX_NUM_PROJECTILES);
 
     Entity* entity = &global_ctx.player;
-    entity->animation.type = ANIMATION_SOLID_COLOR;
+    entity->animation.type = ANIMATION_SOUL;
     entity->position = vec2_create(200.0f, 300.0f);
     entity->prev_position = entity->position;
-    entity->size = vec2_create(20.0f, 48.0f);
+    entity->size = vec2_create(48.0f, 48.0f);
     entity->rotation = 0.0f;
     entity->hitbox_radius = 10.0f;
 
-    i32 id = arena_alloc(&global_ctx.wall_arena);
-    Wall* wall = arena_deref(&global_ctx.wall_arena, id);
-    wall->position = vec2_create(400.0f, 400.0f);
-    wall->size = vec2_create(100.0f, 100.0f);
+    screen_load(SCREEN_1);
 }
 
 static bool collide(Entity* e1, Entity* e2)
@@ -81,6 +73,20 @@ static bool collide(Entity* e1, Entity* e2)
     return false;
 }
 
+static bool collide_projectile_wall(Projectile* proj, Wall* wall)
+{
+    f32 ex, ey, ew, eh, dx, dy, wx, wy, sx, sy;
+    ex = proj->position.x;
+    ey = proj->position.y;
+    ew = proj->size.x / 2;
+    eh = proj->size.y / 2;
+    wx = wall->position.x;
+    wy = wall->position.y;
+    sx = wall->size.x;
+    sy = wall->size.y;
+    return ex + ew > wx && ex - ew < wx + sx && ey + eh > wy && ey - eh < wy + sy;
+}
+
 static bool collide_entity_wall(Entity* entity, Wall* wall)
 {
     f32 ex, ey, ew, eh, dx, dy, wx, wy, sx, sy;
@@ -95,7 +101,6 @@ static bool collide_entity_wall(Entity* entity, Wall* wall)
     if (!(ex + ew > wx && ex - ew < wx + sx && ey + eh > wy && ey - eh < wy + sy))
         return false;
 
-    //entity_set_flag(entity, ENTITY_FLAG_HIT_WALL, true);
     ex = entity->prev_position.x;
     ey = entity->prev_position.y;
     dx = entity->position.x - entity->prev_position.x;
@@ -120,7 +125,6 @@ static void entity_update(Entity* entity, f64 dt)
 {
     animation_update(&entity->animation, dt);
     entity->position = vec2_add(entity->position, vec2_scale(entity->velocity, dt));
-    entity->rotation += dt;
 }
 
 static void collide_entities(void)
@@ -131,19 +135,24 @@ static void collide_entities(void)
     arena = &global_ctx.projectile_arena;
     for (i32 i = 0; i < arena->size; i++)
     {
-        Entity* entity = arena_at(arena, i);
-        if (collide(entity, player) && flag_test(entity, FLAG_COLLIDE_EXPIRE))
-            flag_set(entity, FLAG_DELETE);
+        Entity* proj = arena_at(arena, i);
+        if (collide(proj, player) && flag_test(proj, FLAG_COLLIDE_DELETE))
+            flag_set(proj, FLAG_DELETE);
+
+        for (i32 i = 0; i < global_ctx.wall_arena.size; i++)
+        {
+            Wall* wall = arena_at(&global_ctx.wall_arena, i);
+            if (collide_projectile_wall(proj, wall) && flag_test(proj, FLAG_COLLIDE_DELETE))
+                flag_set(proj, FLAG_DELETE);
+        }
     }
 
     arena = &global_ctx.wall_arena;
     for (i32 i = 0; i < arena->size; i++)
     {
         Wall* wall = arena_at(arena, i);
-        if (collide_entity_wall(player, wall))
-        {
-            log(DEBUG, "COLLIDE");
-        }
+        collide_entity_wall(player, wall);
+        wall->position.x += 10.0f / 60.0f;
     }
 }
 
@@ -182,23 +191,6 @@ void game_update(f64 dt)
 {
     Arena* arena = &global_ctx.projectile_arena;
 
-    //if (global_ctx.time > game_ctx.next_create_time)
-    //{
-    //    for (i32 i = 0; i < 10; i++)
-    //    {
-    //        f32 x = randf_range(0.0f, RESOLUTION_X);
-    //        i32 id = arena_alloc(arena);
-    //        Entity* entity = arena_deref(arena, id);
-    //        entity->position = vec2_create(x, RESOLUTION_Y);
-    //        entity->velocity = vec2_create(0.0f, -200.0f);
-    //        flag_set(entity, FLAG_EXPIRE);
-    //        entity->size = vec2_create(20.0f, 20.0f);
-    //        entity->expire_time = global_ctx.time + 5.0f;
-    //        entity->hitbox_radius = 5.0f;
-    //    }
-    //    game_ctx.next_create_time = global_ctx.time + 0.1f;
-    //}
-
     Entity* player = &global_ctx.player;
 
     f32 speed = 400.0f;
@@ -216,6 +208,8 @@ void game_update(f64 dt)
         player->velocity.y -= 1.0f;
 
     player->velocity = vec2_scale_to(player->velocity, speed);
+
+    screen_update(dt);
 
     // Update then collide to handle wall collisions before drawing
     update_entities(dt);

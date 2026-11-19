@@ -26,6 +26,11 @@ i32 arena_alloc(Arena* arena)
     return sparse_idx;
 }
 
+void arena_clear(Arena* arena)
+{
+    arena->size = 0;
+}
+
 void* arena_deref(Arena* arena, i32 sparse_idx)
 {
     return (u8*)arena->instances + sparse_idx * arena->instance_size;

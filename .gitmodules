@@ -7,3 +7,6 @@
 [submodule "vendor/miniaudio"]
 	path = vendor/miniaudio
 	url = https://github.com/mackron/miniaudio.git
+[submodule "vendor/Nuklear"]
+	path = vendor/Nuklear
+	url = https://github.com/Immediate-Mode-UI/Nuklear.git

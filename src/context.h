@@ -28,11 +28,17 @@ typedef enum {
 } AnimationType;
 
 typedef enum {
-    FLAG_RECT_HITBOX     = 1 << 0,
-    FLAG_EXPIRE          = 1 << 1,
-    FLAG_DELETE          = 1 << 2,
-    FLAG_COLLIDE_EXPIRE  = 1 << 3,
+    FLAG_RECT_HITBOX     = 1 << 0, // Whether entity uses rectanglular hitbox or radius hitbox
+    FLAG_EXPIRE          = 1 << 1, // Whether the entity expires using expire_time
+    FLAG_DELETE          = 1 << 2, // Whether the entity should be deleted next frame
+    FLAG_COLLIDE_DELETE  = 1 << 3, // Whether the entity should be deleted after collision
 } EntityFlag;
+
+typedef enum {
+    SCREEN_1,
+    SCREEN_2,
+    NUM_SCREENS
+} Screen;
 
 typedef struct {
     AnimationType type;
@@ -62,8 +68,12 @@ typedef struct {
     };
 } Entity;
 
+typedef Entity Projectile;
+
 typedef struct {
 
+    GLFWwindow* window;
+    GLFWmonitor* monitor;
     i32 window_width;
     i32 window_height;
 
@@ -72,7 +82,12 @@ typedef struct {
 
     Entity player;
 
+    Screen screen;
+
+    f64 next_create_time;
+
     f64 time;
+    f64 next_update_time;
 
     bool draw_hitboxes;
     bool draw_entities;
@@ -103,5 +118,8 @@ void flag_toggle(Entity* entity, EntityFlag flag);
 
 void game_init(void);
 void game_update(f64 dt);
+
+void screen_load(Screen screen);
+void screen_update(f64 dt);
 
 #endif
