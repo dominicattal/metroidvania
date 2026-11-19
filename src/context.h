@@ -41,8 +41,16 @@ typedef struct {
 } Animation;
 
 typedef struct {
-    Animation animation;
+    // Walls are drawn with position at the bottom left corner
     vec2 position;
+    vec2 size;
+} Wall;
+
+typedef struct {
+    Animation animation;
+    // Entities are drawn with position at their center
+    vec2 position;
+    vec2 prev_position;
     vec2 velocity;
     vec2 size;
     f64 expire_time;

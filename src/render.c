@@ -689,6 +689,25 @@ GLfloat* add_entity_to_buffer(GLfloat* buffer, Entity* entity)
     return buffer + RECT_VERTEX_LENGTH;
 }
 
+GLfloat* add_wall_to_buffer(GLfloat* buffer, Wall* wall)
+{
+    buffer[0] = wall->position.x + wall->size.x / 2;
+    buffer[1] = wall->position.y + wall->size.y / 2;
+    buffer[2] = wall->size.x;
+    buffer[3] = wall->size.y;
+    buffer[4] = render_ctx.solid_color.u;
+    buffer[5] = render_ctx.solid_color.v;
+    buffer[6] = render_ctx.solid_color.w;
+    buffer[7] = render_ctx.solid_color.h;
+    buffer[8] = 1.0f;
+    buffer[9] = 0.0f;
+    buffer[10] = 1.0f;
+    buffer[11] = 1.0f;
+    buffer[12] = 0.0f;
+
+    return buffer + RECT_VERTEX_LENGTH;
+}
+
 GLfloat* add_arena_to_buffer(GLfloat* buffer, Arena* arena)
 {
     for (i32 i = 0; i < arena->size; i++)
@@ -698,10 +717,17 @@ GLfloat* add_arena_to_buffer(GLfloat* buffer, Arena* arena)
 
 void render_entities(void)
 {
+    Arena* arena;
     GLfloat* buffer = render_ctx.rect_vertex_buffer;
 
-    buffer = add_arena_to_buffer(buffer, &global_ctx.projectile_arena);
-    buffer = add_arena_to_buffer(buffer, &global_ctx.wall_arena);
+    arena = &global_ctx.projectile_arena;
+    for (i32 i = 0; i < arena->size; i++)
+        buffer = add_entity_to_buffer(buffer, arena_at(arena, i));
+
+    arena = &global_ctx.wall_arena;
+    for (i32 i = 0; i < arena->size; i++)
+        buffer = add_wall_to_buffer(buffer, arena_at(arena, i));
+
     buffer = add_entity_to_buffer(buffer, &global_ctx.player);
 
     i32 num_entities = (buffer - render_ctx.rect_vertex_buffer) / RECT_VERTEX_LENGTH;
@@ -765,7 +791,7 @@ void render_entity_hitboxes(void)
     add_hitboxes_to_buffer(&circle_buffer, &rect_buffer, &global_ctx.projectile_arena);
     add_hitboxes_to_buffer(&circle_buffer, &rect_buffer, &global_ctx.wall_arena);
 
-    rect_buffer = add_rect_hitbox_to_buffer(rect_buffer, &global_ctx.player);
+    circle_buffer = add_circle_hitbox_to_buffer(circle_buffer, &global_ctx.player);
 
     i32 num_entities = (circle_buffer - render_ctx.circle_vertex_buffer) / CIRCLE_VERTEX_LENGTH;
     glUseProgram(render_ctx.programs[PROGRAM_CIRCLE]);

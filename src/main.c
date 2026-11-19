@@ -55,7 +55,6 @@ void key_callback(GLFWwindow* window, i32 key, i32 scancode, i32 action, i32 mod
 
 int main()
 {
-    global_ctx.draw_entities = true;
     glfwSetErrorCallback(window_error_callback);
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
