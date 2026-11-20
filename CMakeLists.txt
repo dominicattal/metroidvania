@@ -12,6 +12,9 @@ add_executable(metroid
     ${CMAKE_HOME_DIRECTORY}/src/game.c
     ${CMAKE_HOME_DIRECTORY}/src/ui.c
     ${CMAKE_HOME_DIRECTORY}/src/screen.c
+    ${CMAKE_HOME_DIRECTORY}/src/screens/room_1.c
+    ${CMAKE_HOME_DIRECTORY}/src/screens/screen_1.c
+    ${CMAKE_HOME_DIRECTORY}/src/screens/screen_2.c
     ${CMAKE_HOME_DIRECTORY}/src/render.c
     ${CMAKE_HOME_DIRECTORY}/src/audio.c
     ${CMAKE_HOME_DIRECTORY}/src/util/log.c

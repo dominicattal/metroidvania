@@ -1,6 +1,7 @@
 #include "context.h"
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 
 extern GlobalContext global_ctx;
 
@@ -46,6 +47,18 @@ void flag_toggle(u32* flags, Flag flag)
     *flags ^= flag;
 }
 
+void player_init(f64 x, f64 y)
+{
+    assert(global_ctx.player.entity == arena_dummy(&global_ctx.entity_arena));
+    i32 id = arena_alloc(&global_ctx.entity_arena);
+    global_ctx.player.entity = arena_deref(&global_ctx.entity_arena, id);
+    global_ctx.player.entity->position = vec2_create(x, y);
+    global_ctx.player.entity->prev_position = global_ctx.player.entity->position;
+    global_ctx.player.entity->size = vec2_create(48.0f, 48.0f);
+    global_ctx.player.entity->rotation = 0.0f;
+    global_ctx.player.entity->hitbox_radius = 10.0f;
+}
+
 void game_init(void)
 {
     arena_init(&global_ctx.entity_arena, sizeof(Entity), MAX_NUM_ENTITIES);
@@ -54,8 +67,8 @@ void game_init(void)
 
     global_ctx.player.entity = arena_dummy(&global_ctx.entity_arena);
 
-    ui_load(UI_MAIN_MENU);
-    screen_load(SCREEN_NONE);
+    //ui_load(UI_MAIN_MENU);
+    screen_load(SCREEN_ROOM_1);
 }
 
 static bool collide_circle_circle(vec2 pos1, f64 r1, vec2 pos2, f64 r2)
@@ -102,7 +115,7 @@ static bool collide_entity_wall(Entity* entity, Wall* wall)
     ew = entity->size.x / 2;
     eh = entity->size.y / 2;
     wx = wall->position.x;
-    wy = wall->position.y;
+    wy = wall->position.y - wall->size.y;
     sx = wall->size.x;
     sy = wall->size.y;
     if (!(ex + ew > wx && ex - ew < wx + sx && ey + eh > wy && ey - eh < wy + sy))

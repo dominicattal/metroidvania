@@ -23,16 +23,6 @@ static void ui_rect_ex(vec2 pos, vec2 size, Color color, Animation* animation)
     render_rect_ex(pos, size, color, animation);
 }
 
-static void ui_text(char* text, f32 x, f32 y)
-{
-    render_text_ex(text, NULL, x, RESOLUTION_Y - y, 1.0f, (Color){1.0f, 1.0f, 1.0f, 1.0f});
-}
-
-static void ui_text_ex(char* text, f32 x, f32 y, f32 scale, Color color)
-{
-    render_text_ex(text, NULL, x, RESOLUTION_Y - y, scale, color);
-}
-
 static void draw_main_menu(void)
 {
     static i32 selected_idx;
@@ -65,7 +55,7 @@ static void draw_main_menu(void)
     for (i32 idx = 0; idx < list_length; idx++)
     {
         f32 text_width = calculate_text_width(list[idx], 1.0f);
-        ui_text_ex(list[idx], (RESOLUTION_X - text_width) / 2.0f, y, 1.0f,
+        ui_render_text_ex(list[idx], NULL, (RESOLUTION_X - text_width) / 2.0f, y, 1.0f,
             (selected_idx == idx) ? selected_color : unselected_color);
         y += text_height * 1.2;
     }

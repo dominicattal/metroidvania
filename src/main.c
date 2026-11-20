@@ -67,7 +67,7 @@ void key_callback(GLFWwindow* window, i32 key, i32 scancode, i32 action, i32 mod
     game_key_callback(key, action);
 }
 
-int main()
+i32 main()
 {
     glfwSetErrorCallback(window_error_callback);
     glfwInit();

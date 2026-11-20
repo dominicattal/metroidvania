@@ -6,7 +6,9 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include "util.h"
+#include "screen.h"
 
+#define SCREEN_DATA_SIZE 512
 #define RESOLUTION_X 1920
 #define RESOLUTION_Y 1080
 #define MAX_NUM_PROJECTILES 10000
@@ -15,6 +17,9 @@
 
 // add 1 for the player
 #define MAX_NUM_RECTS (MAX_NUM_PROJECTILES + MAX_NUM_ENTITIES + MAX_NUM_WALLS + 1)
+
+typedef void (*ScreenUpdateCallback)(f64);
+typedef void (*ScreenRenderCallback)(void);
 
 typedef enum {
     SOUND_TEST,
@@ -37,6 +42,12 @@ typedef enum {
 } Flag;
 
 typedef enum {
+    FLAG_TALKED_TO_CORE, // Whether player has talked to core
+    NUM_GAME_FLAGS
+} GameFlag;
+
+typedef enum {
+    UI_NONE,
     UI_MAIN_MENU,
     UI_GAME,
     NUM_UIS
@@ -44,6 +55,8 @@ typedef enum {
 
 typedef enum {
     SCREEN_NONE,
+    SCREEN_CORE,
+    SCREEN_ROOM_1,
     SCREEN_1,
     SCREEN_2,
     NUM_SCREENS
@@ -114,12 +127,16 @@ typedef struct {
     Player player;
 
     Screen screen;
+    ScreenUpdateCallback screen_update_callback;
+    ScreenRenderCallback screen_render_callback;
     UI ui;
 
     f64 next_create_time;
 
     f64 time;
     f64 next_update_time;
+
+    bool game_flags[NUM_GAME_FLAGS];
 
     bool key_pressed[GLFW_KEY_LAST+1];
 
@@ -154,6 +171,8 @@ f32  calculate_text_height(f32 scale);
 f32  calculate_text_width(char* text, f32 scale);
 void render_text(char* text, f32 x, f32 y);
 void render_text_ex(char* start, char* end, f32 x, f32 y, f32 scale, Color color);
+void ui_render_text(char* text, f32 x, f32 y);
+void ui_render_text_ex(char* start, char* end, f32 x, f32 y, f32 scale, Color color);
 void render_entities(void);
 
 void toggle_camera_lock(void);
@@ -167,8 +186,11 @@ void game_init(void);
 void game_update(f64 dt);
 void game_key_callback(i32 key, i32 action);
 
+void player_init(f64 x, f64 y);
+
 void screen_load(Screen screen);
 void screen_update(f64 dt);
+void screen_render(void);
 
 void ui_init(void);
 void ui_load(UI ui);

@@ -671,6 +671,22 @@ void render_text(char* text, f32 x, f32 y)
     render_text_ex(text, NULL, x, y, 1.0f, (Color){1.0f, 1.0f, 1.0f, 1.0f});
 }
 
+void ui_render_text(char* text, f32 x, f32 y)
+{
+    GLfloat window_size[5] = {RESOLUTION_X, RESOLUTION_Y, 0, 0, global_ctx.time};
+    glBindBuffer(GL_UNIFORM_BUFFER, render_ctx.ubos[UBO_WINDOW]);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, 5 * sizeof(GLfloat), window_size);
+    render_text_ex(text, NULL, x, RESOLUTION_Y - y, 1.0f, (Color){1.0f, 1.0f, 1.0f, 1.0f});
+}
+
+void ui_render_text_ex(char* start, char* end, f32 x, f32 y, f32 scale, Color color)
+{
+    GLfloat window_size[5] = {RESOLUTION_X, RESOLUTION_Y, 0, 0, global_ctx.time};
+    glBindBuffer(GL_UNIFORM_BUFFER, render_ctx.ubos[UBO_WINDOW]);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, 5 * sizeof(GLfloat), window_size);
+    render_text_ex(start, end, x, RESOLUTION_Y - y, scale, color);
+}
+
 f32 calculate_text_height(f32 scale)
 {
     return scale * FONT_SIZE;
@@ -820,7 +836,7 @@ static GLfloat* add_entity_to_buffer(GLfloat* buffer, Entity* entity)
 static GLfloat* add_wall_to_buffer(GLfloat* buffer, Wall* wall)
 {
     return add_rect_to_buffer(buffer, (RectVertex) {
-                .position  = vec2_create(wall->position.x + wall->size.x / 2, wall->position.y + wall->size.y / 2),
+                .position  = vec2_create(wall->position.x + wall->size.x / 2, wall->position.y - wall->size.y / 2),
                 .size      = wall->size,
                 .uv_offset = vec2_create(render_ctx.solid_color.u, render_ctx.solid_color.v),
                 .uv_size   = vec2_create(render_ctx.solid_color.w, render_ctx.solid_color.h),
@@ -963,6 +979,7 @@ void render()
     if (global_ctx.draw_hitboxes)
         render_game_object_hitboxes();
 
+    screen_render();
     ui_draw();
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
