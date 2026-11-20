@@ -14,17 +14,23 @@
 #define MAX_NUM_PROJECTILES 10000
 #define MAX_NUM_WALLS 100
 #define MAX_NUM_ENTITIES 100
+#define MAX_TIMED_TEXTS 20
 
 // add 1 for the player
 #define MAX_NUM_RECTS (MAX_NUM_PROJECTILES + MAX_NUM_ENTITIES + MAX_NUM_WALLS + 1)
 
 typedef void (*ScreenUpdateCallback)(f64);
-typedef void (*ScreenRenderCallback)(void);
 
 typedef enum {
     SOUND_TEST,
     NUM_SOUNDS
 } Sound;
+
+typedef enum {
+    FONT_DEFAULT,
+    FONT_OUTLINE,
+    NUM_FONTS
+} Font;
 
 typedef enum {
     ANIMATION_SOUL,
@@ -63,10 +69,25 @@ typedef enum {
 } Screen;
 
 typedef struct {
+    f32 r, g, b, a;
+} Color;
+
+typedef struct {
     AnimationType type;
     f64 duration;
     i32 frame;
 } Animation;
+
+typedef struct {
+    char* start;
+    char* end;
+    f64 time_between_chars;
+    f64 next_char_time;
+    f64 end_time;
+    Color color;
+    Font font;
+    f32 x, y, scale;
+} TimedText;
 
 typedef struct {
     // Walls are drawn with position at the bottom left corner
@@ -123,12 +144,12 @@ typedef struct {
     Arena moving_wall_arena;
     Arena entity_arena;
     Arena projectile_arena;
+    Arena timed_text_arena;
 
     Player player;
 
     Screen screen;
     ScreenUpdateCallback screen_update_callback;
-    ScreenRenderCallback screen_render_callback;
     UI ui;
 
     f64 next_create_time;
@@ -168,12 +189,15 @@ void render(void);
 void render_rect(vec2 pos, vec2 size, Color color);
 void render_rect_ex(vec2 pos, vec2 size, Color color, Animation* animation);
 f32  calculate_text_height(f32 scale);
-f32  calculate_text_width(char* text, f32 scale);
+f32  calculate_text_width(char* text, f32 scale, Font font);
 void render_text(char* text, f32 x, f32 y);
-void render_text_ex(char* start, char* end, f32 x, f32 y, f32 scale, Color color);
+void render_text_ex(char* start, char* end, f32 x, f32 y, f32 scale, Color color, Font font);
 void ui_render_text(char* text, f32 x, f32 y);
 void ui_render_text_ex(char* start, char* end, f32 x, f32 y, f32 scale, Color color);
 void render_entities(void);
+
+void timed_text_init(TimedText* text, char* start, f64 start_time, f64 end_time, f64 time_between_chars);
+void timed_text_update(TimedText* text, f64 dt);
 
 void toggle_camera_lock(void);
 
@@ -190,7 +214,6 @@ void player_init(f64 x, f64 y);
 
 void screen_load(Screen screen);
 void screen_update(f64 dt);
-void screen_render(void);
 
 void ui_init(void);
 void ui_load(UI ui);

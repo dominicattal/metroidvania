@@ -82,9 +82,9 @@ typedef struct {
 typedef struct {
 
     FT_Library library;
-    FT_Face face;
-    FT_Glyph_Metrics glyph_metrics[NUM_GLYPHS];
-    stbrp_rect glyph_rects[NUM_GLYPHS];
+    FT_Face faces[NUM_FONTS];
+    FT_Glyph_Metrics glyph_metrics[NUM_FONTS][NUM_GLYPHS];
+    stbrp_rect glyph_rects[NUM_FONTS][NUM_GLYPHS];
 
     GLuint programs[NUM_PROGRAMS];
     GLuint vaos[NUM_VAOS];
@@ -109,9 +109,14 @@ typedef struct {
 
 static RenderContext render_ctx;
 
-static uint8_t font_data[] =
+static uint8_t noto_font_data[] = 
 {
 #embed "../assets/fonts/Noto_Sans/NotoSans-VariableFont_wdth,wght.ttf"
+};
+
+static uint8_t outline_font_data[] =
+{
+#embed "../assets/fonts/lack/Lack-Line-Regular.otf"
 };
 
 static u8 buffer[TEXTURE_SIZE];
@@ -149,56 +154,67 @@ static void link(GLuint program)
     }
 }
 
-static void create_font(void)
+static void create_font(Font font, uint8_t* font_data, size_t font_data_size)
 {
-    FT_Init_FreeType(&render_ctx.library);
-    FT_New_Memory_Face(render_ctx.library, font_data, sizeof(font_data), 0, &render_ctx.face);
-    FT_Set_Pixel_Sizes(render_ctx.face, 0, FONT_SIZE);
+    FT_Error res = FT_New_Memory_Face(render_ctx.library, font_data, font_data_size, 0, &render_ctx.faces[font]);
+    log_assert(res == 0, "Freetype Error %x - %s", res, FT_Error_String(res));
+    FT_Set_Pixel_Sizes(render_ctx.faces[font], 0, FONT_SIZE);
 
-    if (render_ctx.face->glyph->format != FT_GLYPH_FORMAT_BITMAP)
-    {
-        FT_Error error = FT_Render_Glyph(render_ctx.face->glyph, FT_RENDER_MODE_NORMAL);
-    }
+    if (render_ctx.faces[font]->glyph->format != FT_GLYPH_FORMAT_BITMAP)
+        FT_Error error = FT_Render_Glyph(render_ctx.faces[font]->glyph, FT_RENDER_MODE_NORMAL);
 
     for (i32 glyph = GLYPH_START; glyph <= GLYPH_END; glyph++)
     {
-        FT_Load_Char(render_ctx.face, glyph, FT_LOAD_RENDER);
+        FT_Load_Char(render_ctx.faces[font], glyph, FT_LOAD_RENDER);
 
-        FT_Glyph_Metrics* metrics = render_ctx.glyph_metrics + glyph - GLYPH_START;
-        metrics->width = render_ctx.face->glyph->metrics.width >> 6;
-        metrics->height = render_ctx.face->glyph->metrics.height >> 6;
-        metrics->horiBearingX = render_ctx.face->glyph->metrics.horiBearingX >> 6;
-        metrics->horiBearingY = render_ctx.face->glyph->metrics.horiBearingY >> 6;
-        metrics->horiAdvance = render_ctx.face->glyph->metrics.horiAdvance >> 6;
+        FT_Glyph_Metrics* metrics = &render_ctx.glyph_metrics[font][glyph - GLYPH_START];
+        metrics->width = render_ctx.faces[font]->glyph->metrics.width >> 6;
+        metrics->height = render_ctx.faces[font]->glyph->metrics.height >> 6;
+        metrics->horiBearingX = render_ctx.faces[font]->glyph->metrics.horiBearingX >> 6;
+        metrics->horiBearingY = render_ctx.faces[font]->glyph->metrics.horiBearingY >> 6;
+        metrics->horiAdvance = render_ctx.faces[font]->glyph->metrics.horiAdvance >> 6;
 
-        stbrp_rect* rect = render_ctx.glyph_rects + glyph - GLYPH_START;
+        stbrp_rect* rect = &render_ctx.glyph_rects[font][glyph - GLYPH_START];
         rect->id = glyph;
-        rect->w = render_ctx.face->glyph->bitmap.width + BITMAP_PADDING;
-        rect->h = render_ctx.face->glyph->bitmap.rows + BITMAP_PADDING;
+        rect->w = render_ctx.faces[font]->glyph->bitmap.width + BITMAP_PADDING;
+        rect->h = render_ctx.faces[font]->glyph->bitmap.rows + BITMAP_PADDING;
     }
+}
+
+static void unpack_font(Font font)
+{
+    i32 num_packed = 0;
+    for (i32 glyph = GLYPH_START; glyph <= GLYPH_END; glyph++)
+    {
+        FT_Load_Char(render_ctx.faces[font], glyph, FT_LOAD_RENDER);
+        stbrp_rect* rect = &render_ctx.glyph_rects[font][glyph - GLYPH_START];
+        log_assert(rect->was_packed, "Failed to pack glyph %d %c", glyph, glyph);
+        for (i32 y = 0; y < render_ctx.faces[font]->glyph->bitmap.rows; y++)
+        {
+            for (i32 x = 0; x < render_ctx.faces[font]->glyph->bitmap.width; x++)
+            {
+                i32 bitmap_idx = (y + rect->y) * TEXTURE_WIDTH + (x + rect->x);
+                i32 glyph_bitmap_idx = (render_ctx.faces[font]->glyph->bitmap.rows - y - 1) * render_ctx.faces[font]->glyph->bitmap.width + x;
+                buffer[bitmap_idx] = render_ctx.faces[font]->glyph->bitmap.buffer[glyph_bitmap_idx];
+            }
+        }
+    }
+}
+
+static void create_fonts(void)
+{
+    FT_Init_FreeType(&render_ctx.library);
+
+    create_font(FONT_DEFAULT, noto_font_data, sizeof(noto_font_data));
+    create_font(FONT_OUTLINE, outline_font_data, sizeof(outline_font_data));
 
     stbrp_context packing_context;
     stbrp_node glyph_nodes[TEXTURE_WIDTH];
     stbrp_init_target(&packing_context, TEXTURE_WIDTH, TEXTURE_WIDTH, glyph_nodes, TEXTURE_WIDTH);
-    bool all_rects_packed = stbrp_pack_rects(&packing_context, render_ctx.glyph_rects, NUM_GLYPHS);
+    bool all_rects_packed = stbrp_pack_rects(&packing_context, (struct stbrp_rect*)render_ctx.glyph_rects, NUM_GLYPHS * NUM_FONTS);
 
-
-    i32 num_packed = 0;
-    for (i32 glyph = GLYPH_START; glyph <= GLYPH_END; glyph++)
-    {
-        FT_Load_Char(render_ctx.face, glyph, FT_LOAD_RENDER);
-        stbrp_rect* rect = render_ctx.glyph_rects + glyph - GLYPH_START;
-        log_assert(rect->was_packed, "Failed to pack glyph %d %c", glyph, glyph);
-        for (i32 y = 0; y < render_ctx.face->glyph->bitmap.rows; y++)
-        {
-            for (i32 x = 0; x < render_ctx.face->glyph->bitmap.width; x++)
-            {
-                i32 bitmap_idx = (y + rect->y) * TEXTURE_WIDTH + (x + rect->x);
-                i32 glyph_bitmap_idx = (render_ctx.face->glyph->bitmap.rows - y - 1) * render_ctx.face->glyph->bitmap.width + x;
-                buffer[bitmap_idx] = render_ctx.face->glyph->bitmap.buffer[glyph_bitmap_idx];
-            }
-        }
-    }
+    unpack_font(FONT_DEFAULT);
+    unpack_font(FONT_OUTLINE);
 
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glBindTexture(GL_TEXTURE_2D, render_ctx.textures[TEXTURE_GLYPH_BITMAP]);
@@ -610,7 +626,7 @@ void render_init(void)
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);  
 
-    create_font();
+    create_fonts();
     create_sprite_textures();
     create_framebuffer();
     create_window_ubo();
@@ -618,7 +634,7 @@ void render_init(void)
     create_vertex_arrays();
 }
 
-void render_text_ex(char* start, char* end, f32 x, f32 y, f32 scale, Color color)
+void render_text_ex(char* start, char* end, f32 x, f32 y, f32 scale, Color color, Font font)
 {
     static GLfloat vertices[MAX_TEXT_SIZE * 6 * 4];
 
@@ -633,8 +649,8 @@ void render_text_ex(char* start, char* end, f32 x, f32 y, f32 scale, Color color
 
         i32 glyph_idx = c - GLYPH_START;
 
-        FT_Glyph_Metrics* metrics = render_ctx.glyph_metrics + glyph_idx;
-        stbrp_rect* rect = render_ctx.glyph_rects + glyph_idx;
+        FT_Glyph_Metrics* metrics = &render_ctx.glyph_metrics[font][glyph_idx];
+        stbrp_rect* rect = &render_ctx.glyph_rects[font][glyph_idx];
 
         GLfloat* vertex = vertices + n * 6 * 4;
         static f32 offset_x[4] = {0.0f,0.0f,1.0f,1.0f};
@@ -668,7 +684,7 @@ void render_text_ex(char* start, char* end, f32 x, f32 y, f32 scale, Color color
 
 void render_text(char* text, f32 x, f32 y)
 {
-    render_text_ex(text, NULL, x, y, 1.0f, (Color){1.0f, 1.0f, 1.0f, 1.0f});
+    render_text_ex(text, NULL, x, y, 1.0f, (Color){1.0f, 1.0f, 1.0f, 1.0f}, FONT_DEFAULT);
 }
 
 void ui_render_text(char* text, f32 x, f32 y)
@@ -676,7 +692,7 @@ void ui_render_text(char* text, f32 x, f32 y)
     GLfloat window_size[5] = {RESOLUTION_X, RESOLUTION_Y, 0, 0, global_ctx.time};
     glBindBuffer(GL_UNIFORM_BUFFER, render_ctx.ubos[UBO_WINDOW]);
     glBufferSubData(GL_UNIFORM_BUFFER, 0, 5 * sizeof(GLfloat), window_size);
-    render_text_ex(text, NULL, x, RESOLUTION_Y - y, 1.0f, (Color){1.0f, 1.0f, 1.0f, 1.0f});
+    render_text_ex(text, NULL, x, RESOLUTION_Y - y, 1.0f, (Color){1.0f, 1.0f, 1.0f, 1.0f}, FONT_DEFAULT);
 }
 
 void ui_render_text_ex(char* start, char* end, f32 x, f32 y, f32 scale, Color color)
@@ -684,7 +700,7 @@ void ui_render_text_ex(char* start, char* end, f32 x, f32 y, f32 scale, Color co
     GLfloat window_size[5] = {RESOLUTION_X, RESOLUTION_Y, 0, 0, global_ctx.time};
     glBindBuffer(GL_UNIFORM_BUFFER, render_ctx.ubos[UBO_WINDOW]);
     glBufferSubData(GL_UNIFORM_BUFFER, 0, 5 * sizeof(GLfloat), window_size);
-    render_text_ex(start, end, x, RESOLUTION_Y - y, scale, color);
+    render_text_ex(start, end, x, RESOLUTION_Y - y, scale, color, FONT_DEFAULT);
 }
 
 f32 calculate_text_height(f32 scale)
@@ -692,7 +708,7 @@ f32 calculate_text_height(f32 scale)
     return scale * FONT_SIZE;
 }
 
-f32 calculate_text_width(char* text, f32 scale)
+f32 calculate_text_width(char* text, f32 scale, Font font)
 {
     f32 width = 0;
     for (i32 i = 0; i < MAX_TEXT_SIZE && text[i] != '\0'; i++)
@@ -702,8 +718,8 @@ f32 calculate_text_width(char* text, f32 scale)
 
         i32 glyph_idx = text[i] - GLYPH_START;
 
-        FT_Glyph_Metrics* metrics = render_ctx.glyph_metrics + glyph_idx;
-        stbrp_rect* rect = render_ctx.glyph_rects + glyph_idx;
+        FT_Glyph_Metrics* metrics = &render_ctx.glyph_metrics[font][glyph_idx];
+        stbrp_rect* rect = &render_ctx.glyph_rects[font][glyph_idx];
 
         width += metrics->horiAdvance * scale;
     }
@@ -963,6 +979,16 @@ void render_cleanup(void)
     glDeleteFramebuffers(1, &render_ctx.fbo);
 }
 
+void render_timed_texts(void)
+{
+    Arena* arena = &global_ctx.timed_text_arena;
+    for (i32 i = 0; i < arena->size; i++)
+    {
+        TimedText* text = arena_at(arena, i);
+        render_text_ex(text->start, text->end, text->x, text->y, text->scale, text->color, text->font);
+    }
+}
+
 void render()
 {
     GLfloat window_size[5] = {RESOLUTION_X, RESOLUTION_Y, global_ctx.camera_center.x - RESOLUTION_X / 2.0f, global_ctx.camera_center.y - RESOLUTION_Y / 2.0f, global_ctx.time};
@@ -979,7 +1005,8 @@ void render()
     if (global_ctx.draw_hitboxes)
         render_game_object_hitboxes();
 
-    screen_render();
+    render_timed_texts();
+
     ui_draw();
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);

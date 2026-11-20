@@ -6,8 +6,8 @@ void screen_load(Screen screen)
     arena_clear(&global_ctx.entity_arena);
     arena_clear(&global_ctx.projectile_arena);
     arena_clear(&global_ctx.wall_arena);
+    arena_clear(&global_ctx.timed_text_arena);
     global_ctx.screen_update_callback = NULL;
-    global_ctx.screen_render_callback = NULL;
     global_ctx.screen = screen;
     global_ctx.time = global_ctx.next_update_time = 0;
     global_ctx.next_create_time = 0;
@@ -24,7 +24,6 @@ void screen_load(Screen screen)
         {
             screen_room_1_load();
             global_ctx.screen_update_callback = screen_room_1_update;
-            global_ctx.screen_render_callback = screen_room_1_render;
             break;
         }
         case SCREEN_1:
@@ -48,10 +47,4 @@ void screen_update(f64 dt)
 {
     if (global_ctx.screen_update_callback != NULL)
         global_ctx.screen_update_callback(dt);
-}
-
-void screen_render(void)
-{
-    if (global_ctx.screen_render_callback != NULL)
-        global_ctx.screen_render_callback();
 }

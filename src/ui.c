@@ -54,7 +54,7 @@ static void draw_main_menu(void)
     f32 text_height = calculate_text_height(1.0f);
     for (i32 idx = 0; idx < list_length; idx++)
     {
-        f32 text_width = calculate_text_width(list[idx], 1.0f);
+        f32 text_width = calculate_text_width(list[idx], 1.0f, FONT_DEFAULT);
         ui_render_text_ex(list[idx], NULL, (RESOLUTION_X - text_width) / 2.0f, y, 1.0f,
             (selected_idx == idx) ? selected_color : unselected_color);
         y += text_height * 1.2;

@@ -59,11 +59,32 @@ void player_init(f64 x, f64 y)
     global_ctx.player.entity->hitbox_radius = 10.0f;
 }
 
+void timed_text_init(TimedText* text, char* start, f64 start_time, f64 end_time, f64 time_between_chars)
+{
+    text->start = text->end = start;
+    text->next_char_time = start_time; 
+    text->time_between_chars = time_between_chars; 
+    text->end_time = end_time; 
+    text->scale = 1.0f;
+    text->color = (Color){1.0f, 1.0f, 1.0f, 1.0f};
+    text->font = FONT_DEFAULT;
+}
+
+void timed_text_update(TimedText* text, f64 dt)
+{
+    if (*text->end != '\0' && text->next_char_time < global_ctx.time)
+    {
+        text->next_char_time += text->time_between_chars;
+        text->end++;
+    }
+}
+
 void game_init(void)
 {
     arena_init(&global_ctx.entity_arena, sizeof(Entity), MAX_NUM_ENTITIES);
     arena_init(&global_ctx.wall_arena, sizeof(Wall), MAX_NUM_WALLS);
     arena_init(&global_ctx.projectile_arena, sizeof(Projectile), MAX_NUM_PROJECTILES);
+    arena_init(&global_ctx.timed_text_arena, sizeof(TimedText), MAX_TIMED_TEXTS);
 
     global_ctx.player.entity = arena_dummy(&global_ctx.entity_arena);
 
@@ -239,12 +260,30 @@ static void update_center(f64 dt)
     global_ctx.camera_center = vec2_add(global_ctx.camera_center, velocity);
 }
 
+static void update_timed_texts(f64 dt)
+{
+    Arena* arena = &global_ctx.timed_text_arena;
+
+    i32 i = 0;
+    while (i < arena->size)
+    {
+        TimedText* text = arena_at(arena, i);
+        if (text->end_time < global_ctx.time)
+        {
+            arena_free(arena, arena_id(arena, i));
+            continue;
+        }
+        timed_text_update(text, dt);
+        i++;
+    }
+}
+
 static void update_game_objects(f64 dt)
 {
     update_player(dt);
     update_projectiles(dt);
     update_walls(dt);
-    update_center(dt);
+    update_timed_texts(dt);
 }
 
 void game_update(f64 dt)
@@ -256,4 +295,5 @@ void game_update(f64 dt)
     // Update then collide to handle wall collisions before drawing
     update_game_objects(dt);
     collide_game_objects();
+    update_center(dt);
 }
