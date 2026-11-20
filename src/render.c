@@ -432,6 +432,8 @@ void animation_init(Animation* animation, AnimationType type)
     animation->type = type;
     animation->duration = 0;
     animation->frame = 0;
+    animation->looping = true;
+    animation->finished = false;
 }
 
 void animation_update(Animation* animation, f64 dt)
@@ -443,8 +445,15 @@ void animation_update(Animation* animation, f64 dt)
     animation->duration += dt;
     if (animation->duration > data->frames[animation->frame].duration)
     {
-        animation->duration = fmod(animation->duration, data->frames[animation->frame].duration);
-        animation->frame = (animation->frame + 1) % data->num_frames;
+        if (!animation->looping && animation->frame + 1 == data->num_frames)
+        {
+            animation->finished = true;
+        }
+        else
+        {
+            animation->duration = fmod(animation->duration, data->frames[animation->frame].duration);
+            animation->frame = (animation->frame + 1) % data->num_frames;
+        }
     }
 }
 
@@ -522,7 +531,7 @@ static void upload_spritesheet(AnimationData* animation_data, JsonObject* root, 
         i32 h = json_value_get_int(h_value);
 
         animation_data->frames[frame_idx].u = (f32)(rect->x + x) / TEXTURE_WIDTH;
-        animation_data->frames[frame_idx].v = (f32)(rect->x + y) / TEXTURE_WIDTH;
+        animation_data->frames[frame_idx].v = (f32)(rect->y + y) / TEXTURE_WIDTH;
         animation_data->frames[frame_idx].w = (f32)w / TEXTURE_WIDTH;
         animation_data->frames[frame_idx].h = (f32)h / TEXTURE_WIDTH;
     }
@@ -566,6 +575,7 @@ static void create_sprite_textures(void)
     stbrp_node texture_nodes[TEXTURE_WIDTH];
 
     animation_configs[ANIMATION_SOUL] = json_read("assets/sprites/soul.json");
+    animation_configs[ANIMATION_EXPLOSION] = json_read("assets/sprites/explosion.json");
 
     for (i32 anim = 0; anim < NUM_ANIMATIONS; anim++)
     {
@@ -849,6 +859,20 @@ static GLfloat* add_entity_to_buffer(GLfloat* buffer, Entity* entity)
             });
 }
 
+static GLfloat* add_animated_rect_to_buffer(GLfloat* buffer, AnimatedRect* rect)
+{
+    vec2 uv_offset, uv_size;
+    get_animation_uv(&rect->animation, &uv_offset, &uv_size);
+    return add_rect_to_buffer(buffer, (RectVertex) {
+                .position  = rect->position,
+                .size      = rect->size,
+                .uv_offset = uv_offset,
+                .uv_size   = uv_size,
+                .color     = (Color){1.0f, 1.0f, 1.0f, 1.0f},
+                .rotation  = 0.0f
+            });
+}
+
 static GLfloat* add_wall_to_buffer(GLfloat* buffer, Wall* wall)
 {
     return add_rect_to_buffer(buffer, (RectVertex) {
@@ -856,7 +880,7 @@ static GLfloat* add_wall_to_buffer(GLfloat* buffer, Wall* wall)
                 .size      = wall->size,
                 .uv_offset = vec2_create(render_ctx.solid_color.u, render_ctx.solid_color.v),
                 .uv_size   = vec2_create(render_ctx.solid_color.w, render_ctx.solid_color.h),
-                .color     = (Color){1.0f, 1.0f, 1.0f, 1.0f},
+                .color     = wall->color,
                 .rotation  = 0.0f
             });
 }
@@ -866,13 +890,17 @@ void render_game_objects(void)
     Arena* arena;
     GLfloat* buffer = render_ctx.rect_vertex_buffer;
 
-    arena = &global_ctx.projectile_arena;
-    for (i32 i = 0; i < arena->size; i++)
-        buffer = add_projectile_to_buffer(buffer, arena_at(arena, i));
-
     arena = &global_ctx.wall_arena;
     for (i32 i = 0; i < arena->size; i++)
         buffer = add_wall_to_buffer(buffer, arena_at(arena, i));
+
+    arena = &global_ctx.animated_rect_arena;
+    for (i32 i = 0; i < arena->size; i++)
+        buffer = add_animated_rect_to_buffer(buffer, arena_at(arena, i));
+
+    arena = &global_ctx.projectile_arena;
+    for (i32 i = 0; i < arena->size; i++)
+        buffer = add_projectile_to_buffer(buffer, arena_at(arena, i));
 
     arena = &global_ctx.entity_arena;
     for (i32 i = 0; i < arena->size; i++)
@@ -1007,7 +1035,7 @@ void render()
 
     render_timed_texts();
 
-    ui_draw();
+    //ui_draw();
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glViewport(0, 0, global_ctx.window_width, global_ctx.window_height);

@@ -14,10 +14,14 @@
 #define MAX_NUM_PROJECTILES 10000
 #define MAX_NUM_WALLS 100
 #define MAX_NUM_ENTITIES 100
+#define MAX_NUM_ANIMATED_RECTS 100
 #define MAX_TIMED_TEXTS 20
 
+#define WHITE (Color){1.0f, 1.0f, 1.0f, 1.0f};
+#define RED (Color){1.0f, 0.0f, 0.0f, 1.0f};
+
 // add 1 for the player
-#define MAX_NUM_RECTS (MAX_NUM_PROJECTILES + MAX_NUM_ENTITIES + MAX_NUM_WALLS + 1)
+#define MAX_NUM_RECTS (MAX_NUM_PROJECTILES + MAX_NUM_ANIMATED_RECTS + MAX_NUM_ENTITIES + MAX_NUM_WALLS + 1)
 
 typedef void (*ScreenUpdateCallback)(f64);
 
@@ -34,6 +38,7 @@ typedef enum {
 
 typedef enum {
     ANIMATION_SOUL,
+    ANIMATION_EXPLOSION,
     NUM_ANIMATIONS,
     ANIMATION_SOLID_COLOR
 } AnimationType;
@@ -45,6 +50,8 @@ typedef enum {
     FLAG_COLLIDE_DELETE  = 1 << 3, // Whether the entity should be deleted after collision
     FLAG_GRAZED          = 1 << 4, // Whether a projectile has been grazed
     FLAG_SMALL_CLEAR     = 1 << 5, // Whether player using small clear ability
+    FLAG_FRIENDLY        = 1 << 6, // Whether projectile collides with player
+    FLAG_ANIM_DELETE     = 1 << 7, // Whether the projectile should be delete once its animation finishes
 } Flag;
 
 typedef enum {
@@ -76,7 +83,16 @@ typedef struct {
     AnimationType type;
     f64 duration;
     i32 frame;
+    bool looping;
+    bool finished;
 } Animation;
+
+typedef struct {
+    Animation animation;
+    vec2 position;
+    vec2 size;
+    u32 flags;
+} AnimatedRect;
 
 typedef struct {
     char* start;
@@ -93,6 +109,8 @@ typedef struct {
     // Walls are drawn with position at the bottom left corner
     vec2 position;
     vec2 size;
+    Color color;
+    u32 flags;
 } Wall;
 
 typedef struct {
@@ -126,8 +144,9 @@ typedef struct {
     i32 lives;
     i32 graze;
     f64 graze_hitbox_radius;
-    f64 small_clear_radius;
-    f64 small_clear_next_time;
+    vec2 explosion_position;
+    f64 explosion_radius;
+    f64 explosion_next_time;
 } Player;
 
 typedef struct {
@@ -140,8 +159,8 @@ typedef struct {
     i32 window_height;
     bool fullscreen;
 
+    Arena animated_rect_arena;
     Arena wall_arena;
-    Arena moving_wall_arena;
     Arena entity_arena;
     Arena projectile_arena;
     Arena timed_text_arena;
@@ -196,10 +215,14 @@ void ui_render_text(char* text, f32 x, f32 y);
 void ui_render_text_ex(char* start, char* end, f32 x, f32 y, f32 scale, Color color);
 void render_entities(void);
 
-void timed_text_init(TimedText* text, char* start, f64 start_time, f64 end_time, f64 time_between_chars);
-void timed_text_update(TimedText* text, f64 dt);
+TimedText* timed_text_create(char* start, f64 start_time, f64 end_time, f64 time_between_chars);
 
 void toggle_camera_lock(void);
+
+Entity* entity_create(f64 x, f64 y, f64 w, f64 h);
+AnimatedRect* animated_rect_create(AnimationType type, f64 x, f64 y, f64 w, f64 h);
+Projectile* projectile_create(f64 x, f64 y, f64 w, f64 h);
+Wall* wall_create(f64 x, f64 y, f64 w, f64 h);
 
 bool flag_test(u32* flags, Flag flag);
 void flag_set(u32* flags, Flag flag);

@@ -83,8 +83,8 @@ i32 main()
     glfwWindowHint(GLFW_BLUE_BITS, mode->blueBits);
     glfwWindowHint(GLFW_REFRESH_RATE, mode->refreshRate);
 
-    global_ctx.window_width = 640;
-    global_ctx.window_height = 480;
+    global_ctx.window_width = mode->width / 2;
+    global_ctx.window_height = mode->height / 2;
     global_ctx.window = glfwCreateWindow(global_ctx.window_width, global_ctx.window_height, "El Game", NULL, NULL);
 
     glfwSetFramebufferSizeCallback(global_ctx.window, framebuffer_size_callback);

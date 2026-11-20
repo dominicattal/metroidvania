@@ -1,4 +1,5 @@
 #include "json.h"
+#include "log.h"
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,7 +8,7 @@
 // https://www.json.org/json-en.html
 
 // can change these
-#define print_error(line_num, message)
+#define print_error(line_num, message)  log(ERROR, "%d: %s")
 #define json_malloc(size)               malloc(size)
 #define json_realloc(ptr, size)         realloc(ptr, size)
 #define json_free(ptr)                  free(ptr)

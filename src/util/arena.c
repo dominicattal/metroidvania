@@ -4,9 +4,9 @@
 
 void arena_init(Arena* arena, size_t instance_size, i32 capacity)
 {
-    arena->instances = malloc((capacity + 1) * instance_size);
-    arena->sparse = malloc((capacity + 1) * sizeof(i32));
-    arena->dense = malloc((capacity + 1) * sizeof(i32));
+    arena->instances = malloc((capacity + 1) * (instance_size + 2 * sizeof(i32)));
+    arena->sparse = (i32*)((u8*)arena->instances + (capacity + 1) * instance_size);
+    arena->dense = (i32*)((u8*)arena->instances + (capacity + 1) * (instance_size + sizeof(i32)));
     arena->capacity = capacity;
     arena->size = 0;
     arena->instance_size = instance_size;

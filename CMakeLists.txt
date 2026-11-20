@@ -2,8 +2,7 @@ cmake_minimum_required(VERSION 3.5)
 
 project(metroid)
 
-find_package(Freetype REQUIRED)
-
+add_subdirectory(vendor/freetype)
 add_subdirectory(vendor/glfw)
 add_subdirectory(vendor/miniaudio)
 
@@ -26,7 +25,13 @@ add_executable(metroid
 )
 
 target_include_directories(metroid PRIVATE vendor/glad/include vendor/stb vendor/Nuklear)
-target_link_libraries(metroid PRIVATE glfw Freetype::Freetype miniaudio)
+target_link_libraries(metroid PRIVATE glfw freetype miniaudio)
 
 file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/assets/)
-file(COPY ${CMAKE_HOME_DIRECTORY}/assets/ DESTINATION ${CMAKE_BINARY_DIR}/assets/)
+add_custom_target(copy_data
+	COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different 
+        "${CMAKE_HOME_DIRECTORY}/assets/"
+        "${CMAKE_BINARY_DIR}/assets"
+    COMMENT "Copying data"
+)
+add_dependencies(metroid copy_data)

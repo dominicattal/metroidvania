@@ -9,21 +9,31 @@ void game_key_callback(i32 key, i32 action)
 {
     Player* player = &global_ctx.player;
     Entity* entity = player->entity;
-    if (key == GLFW_KEY_Q && action == GLFW_PRESS)
+    if (action == GLFW_PRESS)
     {
-        if (global_ctx.time > player->small_clear_next_time)
+        if (key == GLFW_KEY_Q)
         {
-            flag_set(&entity->flags, FLAG_SMALL_CLEAR);
-            player->small_clear_next_time += 5.0;
+            if (global_ctx.time > player->explosion_next_time)
+            {
+                flag_set(&entity->flags, FLAG_SMALL_CLEAR);
+                player->explosion_next_time += 5.0;
+            }
         }
-    }
-    if (key == GLFW_KEY_R && action == GLFW_PRESS)
-    {
-        global_ctx.camera_locked = !global_ctx.camera_locked; 
-    }
-    if (key == GLFW_KEY_T && action == GLFW_PRESS)
-    {
-        global_ctx.camera_center = global_ctx.player.entity->position;
+        if (key == GLFW_KEY_R)
+        {
+            global_ctx.camera_locked = !global_ctx.camera_locked; 
+        }
+        if (key == GLFW_KEY_T)
+        {
+            global_ctx.camera_center = global_ctx.player.entity->position;
+        }
+        if (key == GLFW_KEY_E)
+        {
+            Player* player = &global_ctx.player;
+            AnimatedRect* anim = animated_rect_create(ANIMATION_EXPLOSION, player->entity->position.x, player->entity->position.y, 96.0, 96.0);
+            player->explosion_position = player->entity->position;
+            player->explosion_radius = 100.0f;
+        }
     }
 }
 
@@ -57,30 +67,67 @@ void player_init(f64 x, f64 y)
     global_ctx.player.entity->size = vec2_create(48.0f, 48.0f);
     global_ctx.player.entity->rotation = 0.0f;
     global_ctx.player.entity->hitbox_radius = 10.0f;
+    animation_init(&global_ctx.player.entity->animation, ANIMATION_SOUL);
+    
 }
 
-void timed_text_init(TimedText* text, char* start, f64 start_time, f64 end_time, f64 time_between_chars)
+TimedText* timed_text_create(char* start, f64 start_time, f64 end_time, f64 time_between_chars)
 {
+    TimedText* text = arena_deref(&global_ctx.timed_text_arena, arena_alloc(&global_ctx.timed_text_arena));
     text->start = text->end = start;
     text->next_char_time = start_time; 
     text->time_between_chars = time_between_chars; 
     text->end_time = end_time; 
     text->scale = 1.0f;
-    text->color = (Color){1.0f, 1.0f, 1.0f, 1.0f};
+    text->color = WHITE;
     text->font = FONT_DEFAULT;
+    return text;
 }
 
-void timed_text_update(TimedText* text, f64 dt)
+Wall* wall_create(f64 x, f64 y, f64 w, f64 h)
 {
-    if (*text->end != '\0' && text->next_char_time < global_ctx.time)
-    {
-        text->next_char_time += text->time_between_chars;
-        text->end++;
-    }
+    Wall* wall = arena_deref(&global_ctx.wall_arena, arena_alloc(&global_ctx.wall_arena));
+    wall->position = vec2_create(x, y);
+    wall->size = vec2_create(w, h);
+    wall->color = WHITE;
+    return wall;
+}
+
+Entity* entity_create(f64 x, f64 y, f64 w, f64 h)
+{
+    Entity* entity = arena_deref(&global_ctx.entity_arena, arena_alloc(&global_ctx.entity_arena));
+    entity->position.x = x;
+    entity->position.y = y;
+    entity->size.x = w;
+    entity->size.y = h;
+    return entity;
+}
+
+AnimatedRect* animated_rect_create(AnimationType type, f64 x, f64 y, f64 w, f64 h)
+{
+    AnimatedRect* rect = arena_deref(&global_ctx.animated_rect_arena, arena_alloc(&global_ctx.animated_rect_arena));
+    rect->position.x = x;
+    rect->position.y = y;
+    rect->size.x = w;
+    rect->size.y = h;
+    animation_init(&rect->animation, type);
+    rect->animation.looping = false;
+    return rect;
+}
+
+Projectile* projectile_create(f64 x, f64 y, f64 w, f64 h)
+{
+    Projectile* proj = arena_deref(&global_ctx.projectile_arena, arena_alloc(&global_ctx.projectile_arena));
+    proj->position.x = x;
+    proj->position.y = y;
+    proj->size.x = w;
+    proj->size.y = h;
+    return proj;
 }
 
 void game_init(void)
 {
+    arena_init(&global_ctx.animated_rect_arena, sizeof(AnimatedRect), MAX_NUM_ANIMATED_RECTS);
     arena_init(&global_ctx.entity_arena, sizeof(Entity), MAX_NUM_ENTITIES);
     arena_init(&global_ctx.wall_arena, sizeof(Wall), MAX_NUM_WALLS);
     arena_init(&global_ctx.projectile_arena, sizeof(Projectile), MAX_NUM_PROJECTILES);
@@ -114,18 +161,16 @@ static bool collide_circle_obb(vec2 pos1, f64 radius1, vec2 pos2, vec2 size2, f6
 
 static bool collide_entity_projectile(Entity* entity, Projectile* proj)
 {
-    bool rect_hitbox = flag_test(&proj->flags, FLAG_RECT_HITBOX);
-    if (!rect_hitbox)
+    if (!flag_test(&proj->flags, FLAG_RECT_HITBOX))
         return collide_circle_circle(entity->position, entity->hitbox_radius, proj->position, proj->hitbox_radius);
     return collide_circle_obb(entity->position, entity->hitbox_radius, proj->position, proj->hitbox_size, proj->rotation);
 }
 
-static bool collide_player_small_clear_projectile(Player* player, Projectile* proj)
+static bool collide_player_explosion_projectile(Player* player, Projectile* proj)
 {
-    bool rect_hitbox = flag_test(&proj->flags, FLAG_RECT_HITBOX);
-    if (!rect_hitbox)
-        return collide_circle_circle(player->entity->position, player->small_clear_radius, proj->position, proj->hitbox_radius);
-    return collide_circle_obb(player->entity->position, player->small_clear_radius, proj->position, proj->hitbox_size, proj->rotation);
+    if (!flag_test(&proj->flags, FLAG_RECT_HITBOX))
+        return collide_circle_circle(player->entity->position, player->explosion_radius, proj->position, proj->hitbox_radius);
+    return collide_circle_obb(player->entity->position, player->explosion_radius, proj->position, proj->hitbox_size, proj->rotation);
 }
 
 static bool collide_entity_wall(Entity* entity, Wall* wall)
@@ -162,6 +207,19 @@ static bool collide_entity_wall(Entity* entity, Wall* wall)
     return true;
 }
 
+static bool collide_player_explosion_wall(Player* player, Wall* wall)
+{
+    f32 ex, ey, er, dx, dy, wx, wy, sx, sy;
+    ex = player->explosion_position.x;
+    ey = player->explosion_position.y;
+    er = player->explosion_radius;
+    wx = wall->position.x;
+    wy = wall->position.y - wall->size.y;
+    sx = wall->size.x;
+    sy = wall->size.y;
+    return ex + er > wx && ex - er < wx + sx && ey + er > wy && ey - er < wy + sy;
+}
+
 static void collide_game_objects(void)
 {
     Arena* arena;
@@ -171,7 +229,7 @@ static void collide_game_objects(void)
     for (i32 i = 0; i < arena->size; i++)
     {
         Projectile* proj = arena_at(arena, i);
-        if (collide_player_small_clear_projectile(&global_ctx.player, proj))
+        if (collide_player_explosion_projectile(&global_ctx.player, proj))
         {
             flag_set(&proj->flags, FLAG_DELETE);
             continue;
@@ -179,13 +237,19 @@ static void collide_game_objects(void)
         if (collide_entity_projectile(player_entity, proj) && flag_test(&proj->flags, FLAG_COLLIDE_DELETE))
         {
             flag_set(&proj->flags, FLAG_DELETE);
+            continue;
         }
     }
 
     arena = &global_ctx.wall_arena;
     for (i32 i = 0; i < arena->size; i++)
     {
-        collide_entity_wall(player_entity, arena_at(arena, i));
+        Wall* wall = arena_at(arena, i);
+        collide_entity_wall(player_entity, wall);
+        if (collide_player_explosion_wall(&global_ctx.player, wall))
+        {
+            flag_set(&wall->flags, FLAG_DELETE);
+        }
     }
 }
 
@@ -222,7 +286,10 @@ static void update_projectiles(f64 dt)
     while (i < arena->size)
     {
         Projectile* proj = arena_at(arena, i);
-        if (flag_test(&proj->flags, FLAG_DELETE) || (flag_test(&proj->flags, FLAG_EXPIRE) && global_ctx.time > proj->expire_time))
+        bool delete = flag_test(&proj->flags, FLAG_DELETE)
+                   || (flag_test(&proj->flags, FLAG_EXPIRE) && global_ctx.time > proj->expire_time)
+                   || (flag_test(&proj->flags, FLAG_ANIM_DELETE) && proj->animation.finished);
+        if (delete)
         {
             arena_free(arena, arena_id(arena, i));
             continue;
@@ -236,6 +303,18 @@ static void update_projectiles(f64 dt)
 
 static void update_walls(f64 dt)
 {
+    i32 i = 0;
+    Arena* arena = &global_ctx.wall_arena;
+    while (i < arena->size)
+    {
+        Wall* wall = arena_at(arena, i);
+        if (flag_test(&wall->flags, FLAG_DELETE))
+        {
+            arena_free(arena, arena_id(arena, i));
+            continue;
+        }
+        i++;
+    }
 }
 
 static void update_center(f64 dt)
@@ -273,7 +352,29 @@ static void update_timed_texts(f64 dt)
             arena_free(arena, arena_id(arena, i));
             continue;
         }
-        timed_text_update(text, dt);
+        if (*text->end != '\0' && text->next_char_time < global_ctx.time)
+        {
+            text->next_char_time += text->time_between_chars;
+            text->end++;
+        }
+        i++;
+    }
+}
+
+static void update_animated_rects(f64 dt)
+{
+    Arena* arena = &global_ctx.animated_rect_arena;
+
+    i32 i = 0;
+    while (i < arena->size)
+    {
+        AnimatedRect* rect = arena_at(arena, i);
+        if (rect->animation.finished)
+        {
+            arena_free(arena, arena_id(arena, i));
+            continue;
+        }
+        animation_update(&rect->animation, dt);
         i++;
     }
 }
@@ -284,6 +385,7 @@ static void update_game_objects(f64 dt)
     update_projectiles(dt);
     update_walls(dt);
     update_timed_texts(dt);
+    update_animated_rects(dt);
 }
 
 void game_update(f64 dt)
