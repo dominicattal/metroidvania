@@ -64,6 +64,7 @@ void key_callback(GLFWwindow* window, i32 key, i32 scancode, i32 action, i32 mod
         if (key == GLFW_KEY_3)
             screen_load(SCREEN_NONE);
     }
+    game_key_callback(key, action);
 }
 
 int main()
@@ -74,13 +75,13 @@ int main()
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    //GLFWmonitor* monitor = glfwGetPrimaryMonitor();
-    //const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+    GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+    const GLFWvidmode* mode = glfwGetVideoMode(monitor);
  
-    //glfwWindowHint(GLFW_RED_BITS, mode->redBits);
-    //glfwWindowHint(GLFW_GREEN_BITS, mode->greenBits);
-    //glfwWindowHint(GLFW_BLUE_BITS, mode->blueBits);
-    //glfwWindowHint(GLFW_REFRESH_RATE, mode->refreshRate);
+    glfwWindowHint(GLFW_RED_BITS, mode->redBits);
+    glfwWindowHint(GLFW_GREEN_BITS, mode->greenBits);
+    glfwWindowHint(GLFW_BLUE_BITS, mode->blueBits);
+    glfwWindowHint(GLFW_REFRESH_RATE, mode->refreshRate);
 
     global_ctx.window_width = 640;
     global_ctx.window_height = 480;
@@ -116,12 +117,9 @@ int main()
         render();
         audio_update();
 
-        memset(global_ctx.key_pressed, 0, GLFW_KEY_LAST * sizeof(bool));
+        memset(global_ctx.key_pressed, 0, sizeof(global_ctx.key_pressed));
         glfwSwapBuffers(global_ctx.window);
         glfwPollEvents();
-        //glfwSetWindowPos(global_ctx.window, 0, 0);
-        //glfwSetWindowSize(global_ctx.window, 300, 300);
-        //glfwMakeContextCurrent(global_ctx.window);
 
         ftime(&end);
         global_ctx.time += (f64)(end.time - start.time + (end.millitm - start.millitm) / 1000.0f);

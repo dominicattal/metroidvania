@@ -325,10 +325,10 @@ static void create_shader_programs(void)
 
 static void create_window_ubo(void)
 {
-    GLfloat window_size[3] = {RESOLUTION_X, RESOLUTION_Y, 0.0f};
+    GLfloat window_size[5] = {RESOLUTION_X, RESOLUTION_Y, 0.0f, 0.0f, 0.0f};
     glBindBuffer(GL_UNIFORM_BUFFER, render_ctx.ubos[UBO_WINDOW]);
     glBindBufferBase(GL_UNIFORM_BUFFER, UBO_INDEX_WINDOW, render_ctx.ubos[UBO_WINDOW]);
-    glBufferData(GL_UNIFORM_BUFFER, 3 * sizeof(GLfloat), window_size, GL_STATIC_DRAW);
+    glBufferData(GL_UNIFORM_BUFFER, 5 * sizeof(GLfloat), window_size, GL_STATIC_DRAW);
 }
 
 static void create_vertex_arrays(void)
@@ -618,18 +618,20 @@ void render_init(void)
     create_vertex_arrays();
 }
 
-void render_text_ex(char* text, f32 x, f32 y, f32 scale, Color color)
+void render_text_ex(char* start, char* end, f32 x, f32 y, f32 scale, Color color)
 {
     static GLfloat vertices[MAX_TEXT_SIZE * 6 * 4];
 
+    char* cur = start;
     i32 i, n;
     n = 0;
-    for (i = 0; i < MAX_TEXT_SIZE && text[i] != '\0'; i++)
+    for (; (cur - start) < MAX_TEXT_SIZE && cur != end && *cur != '\0'; cur++)
     {
-        if (text[i] < GLYPH_START || text[i] > GLYPH_END)
+        char c = *cur;
+        if (c < GLYPH_START || c > GLYPH_END)
             continue;
 
-        i32 glyph_idx = text[i] - GLYPH_START;
+        i32 glyph_idx = c - GLYPH_START;
 
         FT_Glyph_Metrics* metrics = render_ctx.glyph_metrics + glyph_idx;
         stbrp_rect* rect = render_ctx.glyph_rects + glyph_idx;
@@ -649,7 +651,7 @@ void render_text_ex(char* text, f32 x, f32 y, f32 scale, Color color)
         x += metrics->horiAdvance * scale;
         n++;
     }
-    if (i == MAX_TEXT_SIZE)
+    if ((cur - start) == MAX_TEXT_SIZE)
     {
         log(WARNING, "Render too much text");
         return;
@@ -666,7 +668,7 @@ void render_text_ex(char* text, f32 x, f32 y, f32 scale, Color color)
 
 void render_text(char* text, f32 x, f32 y)
 {
-    render_text_ex(text, x, y, 1.0f, (Color){1.0f, 1.0f, 1.0f, 1.0f});
+    render_text_ex(text, NULL, x, y, 1.0f, (Color){1.0f, 1.0f, 1.0f, 1.0f});
 }
 
 f32 calculate_text_height(f32 scale)
@@ -718,31 +720,6 @@ static GLfloat* add_circle_to_buffer(GLfloat* buffer, CircleVertex circle)
     return buffer + CIRCLE_VERTEX_LENGTH;
 }
 
-void render_rect(vec2 pos, vec2 size, Color color)
-{
-    GLfloat buffer[RECT_VERTEX_LENGTH];
-    buffer[0] = pos.x + size.x / 2;
-    buffer[1] = pos.y - size.y / 2;
-    buffer[2] = size.x;
-    buffer[3] = size.y;
-    buffer[4] = render_ctx.solid_color.u;
-    buffer[5] = render_ctx.solid_color.v;
-    buffer[6] = render_ctx.solid_color.w;
-    buffer[7] = render_ctx.solid_color.h;
-    buffer[8] = color.r;
-    buffer[9] = color.g;
-    buffer[10] = color.b;
-    buffer[11] = color.a;
-    buffer[12] = 0.0f;
-
-    glUseProgram(render_ctx.programs[PROGRAM_RECT]);
-    glBindVertexArray(render_ctx.vaos[VAO_RECT]);
-    glBindBuffer(GL_ARRAY_BUFFER, render_ctx.vbos[VBO_RECT]);
-    glBindTexture(GL_TEXTURE_2D, render_ctx.textures[TEXTURE_SPRITES]);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, RECT_VERTEX_LENGTH * sizeof(GLfloat), buffer);
-    glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, 1);
-}
-
 void render_rect_ex(vec2 pos, vec2 size, Color color, Animation* animation)
 {
     GLfloat buffer[RECT_VERTEX_LENGTH];
@@ -774,12 +751,23 @@ void render_rect_ex(vec2 pos, vec2 size, Color color, Animation* animation)
 
     buffer[12] = 0.0f;
 
+    GLfloat window_size[5] = {RESOLUTION_X, RESOLUTION_Y, 0, 0, global_ctx.time};
+    glBindBuffer(GL_UNIFORM_BUFFER, render_ctx.ubos[UBO_WINDOW]);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, 5 * sizeof(GLfloat), window_size);
+
     glUseProgram(render_ctx.programs[PROGRAM_RECT]);
     glBindVertexArray(render_ctx.vaos[VAO_RECT]);
     glBindBuffer(GL_ARRAY_BUFFER, render_ctx.vbos[VBO_RECT]);
     glBindTexture(GL_TEXTURE_2D, render_ctx.textures[TEXTURE_SPRITES]);
     glBufferSubData(GL_ARRAY_BUFFER, 0, RECT_VERTEX_LENGTH * sizeof(GLfloat), buffer);
     glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, 1);
+}
+
+void render_rect(vec2 pos, vec2 size, Color color)
+{
+    Animation animation;
+    animation.type = ANIMATION_SOLID_COLOR;
+    render_rect_ex(pos, size, color, &animation);
 }
 
 static void get_animation_uv(Animation* animation, vec2* uv_offset, vec2* uv_size)
@@ -961,9 +949,9 @@ void render_cleanup(void)
 
 void render()
 {
-    //GLfloat window_size[3] = {RESOLUTION_X, RESOLUTION_Y, global_ctx.time};
-    //glBindBuffer(GL_UNIFORM_BUFFER, render_ctx.ubos[UBO_WINDOW]);
-    //glBufferSubData(GL_UNIFORM_BUFFER, 0, 3 * sizeof(GLfloat), window_size);
+    GLfloat window_size[5] = {RESOLUTION_X, RESOLUTION_Y, global_ctx.camera_center.x - RESOLUTION_X / 2.0f, global_ctx.camera_center.y - RESOLUTION_Y / 2.0f, global_ctx.time};
+    glBindBuffer(GL_UNIFORM_BUFFER, render_ctx.ubos[UBO_WINDOW]);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, 5 * sizeof(GLfloat), window_size);
 
     glBindFramebuffer(GL_FRAMEBUFFER, render_ctx.fbo);
     glViewport(0, 0, RESOLUTION_X, RESOLUTION_Y);

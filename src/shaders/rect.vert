@@ -9,6 +9,7 @@ layout (location = 5) in float inRotation;
 
 layout (std140) uniform Window {
     vec2 resolution;
+    vec2 center;
     float time;
 } window;
 
@@ -23,7 +24,7 @@ void main()
     float x = inSize.x * inPosition.x * cos(inRotation) - inSize.y * inPosition.y * sin(inRotation);
     float y = inSize.x * inPosition.x * sin(inRotation) + inSize.y * inPosition.y * cos(inRotation);
     gl_Position = vec4(
-            ((inOffset.x + x) / window.resolution.x - 0.5f) * 2.0f,
-            ((inOffset.y + y) / window.resolution.y - 0.5f) * 2.0f,
+            ((inOffset.x - window.center.x + x) / window.resolution.x - 0.5f) * 2.0f,
+            ((inOffset.y - window.center.y + y) / window.resolution.y - 0.5f) * 2.0f,
             0.0f, 1.0f);
 };

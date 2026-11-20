@@ -25,12 +25,12 @@ static void ui_rect_ex(vec2 pos, vec2 size, Color color, Animation* animation)
 
 static void ui_text(char* text, f32 x, f32 y)
 {
-    render_text_ex(text, x, RESOLUTION_Y - y, 1.0f, (Color){1.0f, 1.0f, 1.0f, 1.0f});
+    render_text_ex(text, NULL, x, RESOLUTION_Y - y, 1.0f, (Color){1.0f, 1.0f, 1.0f, 1.0f});
 }
 
 static void ui_text_ex(char* text, f32 x, f32 y, f32 scale, Color color)
 {
-    render_text_ex(text, x, RESOLUTION_Y - y, scale, color);
+    render_text_ex(text, NULL, x, RESOLUTION_Y - y, scale, color);
 }
 
 static void draw_main_menu(void)
@@ -73,8 +73,6 @@ static void draw_main_menu(void)
 
 static void draw_game(void)
 {
-    ui_text("Hello World", 0, 300);
-
     vec2 rect_pos = vec2_create(10, 10);
     vec2 rect_size = vec2_create(48, 48);
     Color color = (Color){1.0f, 1.0f, 1.0f, 1.0f};

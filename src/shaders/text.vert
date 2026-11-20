@@ -5,6 +5,8 @@ layout (location = 1) in vec2 inTexCoord;
 
 layout (std140) uniform Window {
     vec2 resolution;
+    vec2 center;
+    float time;
 } window;
 
 out vec2 TexCoord;

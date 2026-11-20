@@ -33,6 +33,7 @@ typedef enum {
     FLAG_DELETE          = 1 << 2, // Whether the entity should be deleted next frame
     FLAG_COLLIDE_DELETE  = 1 << 3, // Whether the entity should be deleted after collision
     FLAG_GRAZED          = 1 << 4, // Whether a projectile has been grazed
+    FLAG_SMALL_CLEAR     = 1 << 5, // Whether player using small clear ability
 } Flag;
 
 typedef enum {
@@ -90,7 +91,9 @@ typedef struct {
     Entity* entity;
     i32 lives;
     i32 graze;
-    f32 graze_hitbox_radius;
+    f64 graze_hitbox_radius;
+    f64 small_clear_radius;
+    f64 small_clear_next_time;
 } Player;
 
 typedef struct {
@@ -104,6 +107,7 @@ typedef struct {
     bool fullscreen;
 
     Arena wall_arena;
+    Arena moving_wall_arena;
     Arena entity_arena;
     Arena projectile_arena;
 
@@ -118,14 +122,20 @@ typedef struct {
     f64 next_update_time;
 
     bool key_pressed[GLFW_KEY_LAST+1];
+
     bool draw_hitboxes;
     bool draw_entities;
+
+    vec2 camera_center;
+    bool camera_locked;
 
 } GlobalContext;
 
 extern GlobalContext global_ctx;
 
 bool key_down(i32 key);
+// cannot use in game logic bc key_pressed updates every window refresh
+// but game may not update every window refresh (unless vsynx is on)
 bool key_pressed(i32 key);
 
 void animation_init(Animation* animation, AnimationType type);
@@ -143,8 +153,10 @@ void render_rect_ex(vec2 pos, vec2 size, Color color, Animation* animation);
 f32  calculate_text_height(f32 scale);
 f32  calculate_text_width(char* text, f32 scale);
 void render_text(char* text, f32 x, f32 y);
-void render_text_ex(char* text, f32 x, f32 y, f32 scale, Color color);
+void render_text_ex(char* start, char* end, f32 x, f32 y, f32 scale, Color color);
 void render_entities(void);
+
+void toggle_camera_lock(void);
 
 bool flag_test(u32* flags, Flag flag);
 void flag_set(u32* flags, Flag flag);
@@ -153,6 +165,7 @@ void flag_toggle(u32* flags, Flag flag);
 
 void game_init(void);
 void game_update(f64 dt);
+void game_key_callback(i32 key, i32 action);
 
 void screen_load(Screen screen);
 void screen_update(f64 dt);
