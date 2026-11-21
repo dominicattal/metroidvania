@@ -5,14 +5,24 @@
 
 GlobalContext global_ctx;
 
-bool key_down(i32 key)
+bool glfw_key_down(i32 key)
 {
     return glfwGetKey(global_ctx.window, key) == GLFW_PRESS;
 }
 
-bool key_pressed(i32 key)
+bool glfw_key_pressed(i32 key)
 {
     return global_ctx.key_pressed[key];
+}
+
+bool key_down(Key key)
+{
+    return glfw_key_down(global_ctx.keybinds[key]);
+}
+
+bool key_pressed(Key key)
+{
+    return glfw_key_pressed(global_ctx.keybinds[key]);
 }
 
 void window_error_callback(i32 x, const char* message)
@@ -51,10 +61,7 @@ void key_callback(GLFWwindow* window, i32 key, i32 scancode, i32 action, i32 mod
             }
         }
 
-        if (key == GLFW_KEY_F3)
-            global_ctx.draw_entities = !global_ctx.draw_entities;
-
-        if (key == GLFW_KEY_F2)
+        if (key == GLFW_KEY_F1)
             global_ctx.draw_hitboxes = !global_ctx.draw_hitboxes;
 
         if (key == GLFW_KEY_1)
@@ -99,7 +106,7 @@ i32 main()
     game_init();
     ui_init();
 
-    f64 dt = 1.0 / 60.0;
+    f64 dt = 1.0 / mode->refreshRate;
     global_ctx.time = global_ctx.next_update_time = 0;
 
     struct timeb start, end;
@@ -107,11 +114,19 @@ i32 main()
     ftime(&start);
     while (!glfwWindowShouldClose(global_ctx.window))
     {
-        if (global_ctx.time > global_ctx.next_update_time)
+        static i32 speed = 1;
+        if (glfw_key_down(GLFW_KEY_F2) && speed > 0)
+            speed--;
+        if (glfw_key_down(GLFW_KEY_F3) && speed < 8)
+            speed++;
+        if (glfw_key_down(GLFW_KEY_F4))
+            speed = 1;
+
+        for (i32 i = 0; i < speed; i++)
         {
             game_update(dt);
             ui_update(dt);
-            global_ctx.next_update_time += dt;
+            global_ctx.time += dt;
         }
 
         render();
@@ -120,10 +135,11 @@ i32 main()
         memset(global_ctx.key_pressed, 0, sizeof(global_ctx.key_pressed));
         glfwSwapBuffers(global_ctx.window);
         glfwPollEvents();
+        //ftime(&end);
+        //global_ctx.time += speed * (f64)(end.time - start.time + (end.millitm - start.millitm) / 1000.0f);
+        //start = end;
 
-        ftime(&end);
-        global_ctx.time += (f64)(end.time - start.time + (end.millitm - start.millitm) / 1000.0f);
-        start = end;
+        //global_ctx.next_update_time += dt;
     }
     render_cleanup();
     glfwDestroyWindow(global_ctx.window);

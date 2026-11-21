@@ -1,8 +1,6 @@
 #ifndef CONTEXT_H
 #define CONTEXT_H
 
-#include <stdio.h>
-#include <math.h>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include "util.h"
@@ -17,16 +15,22 @@
 #define MAX_NUM_ANIMATED_RECTS 100
 #define MAX_TIMED_TEXTS 20
 
-#define WHITE (Color){1.0f, 1.0f, 1.0f, 1.0f};
-#define RED (Color){1.0f, 0.0f, 0.0f, 1.0f};
+#define BLANK (Color){0.0f, 0.0f, 0.0f, 0.0f}
+#define WHITE (Color){1.0f, 1.0f, 1.0f, 1.0f}
+#define RED (Color){1.0f, 0.0f, 0.0f, 1.0f}
+#define BLUE (Color){0.0f, 0.0f, 1.0f, 1.0f}
 
 // add 1 for the player
 #define MAX_NUM_RECTS (MAX_NUM_PROJECTILES + MAX_NUM_ANIMATED_RECTS + MAX_NUM_ENTITIES + MAX_NUM_WALLS + 1)
 
+typedef struct TimedText TimedText;
+
 typedef void (*ScreenUpdateCallback)(f64);
+typedef void (*TimedTextEndCallback)(TimedText*);
 
 typedef enum {
     SOUND_TEST,
+    SOUND_BREAK_DOOR,
     NUM_SOUNDS
 } Sound;
 
@@ -37,22 +41,47 @@ typedef enum {
 } Font;
 
 typedef enum {
+    KEY_MOVE_UP,
+    KEY_MOVE_LEFT,
+    KEY_MOVE_DOWN,
+    KEY_MOVE_RIGHT,
+    KEY_MOVE_SLOW,
+    KEY_EXPLOSION,
+    NUM_KEYBINDS
+} Key;
+
+typedef enum {
     ANIMATION_SOUL,
     ANIMATION_EXPLOSION,
+    ANIMATION_WASD,
+    ANIMATION_E,
     NUM_ANIMATIONS,
     ANIMATION_SOLID_COLOR
 } AnimationType;
 
 typedef enum {
-    FLAG_RECT_HITBOX     = 1 << 0, // Whether entity uses rectanglular hitbox or radius hitbox
-    FLAG_EXPIRE          = 1 << 1, // Whether the entity expires using expire_time
-    FLAG_DELETE          = 1 << 2, // Whether the entity should be deleted next frame
-    FLAG_COLLIDE_DELETE  = 1 << 3, // Whether the entity should be deleted after collision
-    FLAG_GRAZED          = 1 << 4, // Whether a projectile has been grazed
-    FLAG_SMALL_CLEAR     = 1 << 5, // Whether player using small clear ability
-    FLAG_FRIENDLY        = 1 << 6, // Whether projectile collides with player
-    FLAG_ANIM_DELETE     = 1 << 7, // Whether the projectile should be delete once its animation finishes
-} Flag;
+    ANIMATED_RECT_FLAG_DELETE   = 1 << 0, // Whether animated rect should be deleted next frame
+} AnimatedRectFlag;
+
+typedef enum {
+    PROJ_FLAG_RECT_HITBOX       = 1 << 0, // Whether proj uses rectanglular hitbox or radius hitbox
+    PROJ_FLAG_EXPIRE            = 1 << 1, // Wheter proj use expire_time or not
+    PROJ_FLAG_DELETE            = 1 << 2, // Whether proj should be deleted next frame
+    PROJ_FLAG_COLLIDE_DELETE    = 1 << 3, // Whether proj should be deleted after collision
+    PROJ_FLAG_EXPLOSION_DELETE  = 1 << 4, // Whether proj should be be deleted after player explosion
+    PROJ_FLAG_GRAZED            = 1 << 5, // Whether a projectile has been grazed
+} ProjectileFlag;
+
+typedef enum {
+    PLAYER_FLAG_CAN_MOVE        = 1 << 0, // Whether player can move
+    PLAYER_FLAG_CAN_EXPLODE     = 1 << 1, // Whether player can use explosion
+    PLAYER_FLAG_EXPLODED        = 1 << 2, // Whether player used explosion this frame
+} PlayerFlag;
+
+typedef enum {
+    WALL_FLAG_DELETE            = 1 << 0, // Whether wall should be deleted next frame
+    WALL_FLAG_EXPLOSION_DELETE  = 1 << 1, // Whether wall should be be deleted after player explosion
+} WallFlag;
 
 typedef enum {
     FLAG_TALKED_TO_CORE, // Whether player has talked to core
@@ -81,6 +110,7 @@ typedef struct {
 
 typedef struct {
     AnimationType type;
+    Color color;
     f64 duration;
     i32 frame;
     bool looping;
@@ -89,17 +119,20 @@ typedef struct {
 
 typedef struct {
     Animation animation;
+    f64 end_time;
     vec2 position;
     vec2 size;
     u32 flags;
 } AnimatedRect;
 
-typedef struct {
+typedef struct TimedText {
+    TimedTextEndCallback end_callback;
     char* start;
     char* end;
     f64 time_between_chars;
     f64 next_char_time;
     f64 end_time;
+    Sound sound;
     Color color;
     Font font;
     f32 x, y, scale;
@@ -147,6 +180,7 @@ typedef struct {
     vec2 explosion_position;
     f64 explosion_radius;
     f64 explosion_next_time;
+    u32 flags;
 } Player;
 
 typedef struct {
@@ -177,11 +211,10 @@ typedef struct {
     f64 next_update_time;
 
     bool game_flags[NUM_GAME_FLAGS];
-
+    i32 keybinds[NUM_KEYBINDS];
     bool key_pressed[GLFW_KEY_LAST+1];
 
     bool draw_hitboxes;
-    bool draw_entities;
 
     vec2 camera_center;
     bool camera_locked;
@@ -190,10 +223,12 @@ typedef struct {
 
 extern GlobalContext global_ctx;
 
-bool key_down(i32 key);
+bool glfw_key_down(i32 key);
 // cannot use in game logic bc key_pressed updates every window refresh
 // but game may not update every window refresh (unless vsynx is on)
-bool key_pressed(i32 key);
+bool glfw_key_pressed(i32 key);
+bool key_down(Key key);
+bool key_pressed(Key key);
 
 void animation_init(Animation* animation, AnimationType type);
 void animation_update(Animation* animation, f64 dt);
@@ -224,10 +259,10 @@ AnimatedRect* animated_rect_create(AnimationType type, f64 x, f64 y, f64 w, f64 
 Projectile* projectile_create(f64 x, f64 y, f64 w, f64 h);
 Wall* wall_create(f64 x, f64 y, f64 w, f64 h);
 
-bool flag_test(u32* flags, Flag flag);
-void flag_set(u32* flags, Flag flag);
-void flag_clear(u32* flags, Flag flag);
-void flag_toggle(u32* flags, Flag flag);
+bool flag_test(u32* flags, u32 flag);
+void flag_set(u32* flags, u32 flag);
+void flag_clear(u32* flags, u32 flag);
+void flag_toggle(u32* flags, u32 flag);
 
 void game_init(void);
 void game_update(f64 dt);

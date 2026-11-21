@@ -34,7 +34,7 @@ static void draw_main_menu(void)
 
     i32 list_length = sizeof(list) / sizeof(char*);
 
-    if (key_pressed(GLFW_KEY_ENTER))
+    if (glfw_key_pressed(GLFW_KEY_ENTER))
     {
         if (selected_idx == 0)
             screen_load(SCREEN_1);// start game
@@ -42,9 +42,9 @@ static void draw_main_menu(void)
             glfwSetWindowShouldClose(global_ctx.window, true);
     }
 
-    if (key_pressed(GLFW_KEY_W) && selected_idx - 1 >= 0) 
+    if (glfw_key_pressed(GLFW_KEY_W) && selected_idx - 1 >= 0) 
         --selected_idx;
-    if (key_pressed(GLFW_KEY_S) && selected_idx + 1 < list_length) 
+    if (glfw_key_pressed(GLFW_KEY_S) && selected_idx + 1 < list_length) 
         ++selected_idx;
 
     Color selected_color = (Color){1.0f, 0.0f, 0.0f, 1.0f};

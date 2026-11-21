@@ -24,6 +24,7 @@ void audio_init(void)
     ma_result res = ma_engine_init(NULL, &audio_ctx.engine);
     assert(res == MA_SUCCESS);
     res = ma_sound_init_from_file(&audio_ctx.engine, "assets/audio/400 Sounds Pack/Materials/bamboo_drop.wav", 0, NULL, NULL, audio_ctx.sounds + SOUND_TEST);
+    res = ma_sound_init_from_file(&audio_ctx.engine, "assets/audio/96 Extra SFX/door_clunk.wav", 0, NULL, NULL, audio_ctx.sounds + SOUND_BREAK_DOOR);
 }
 
 void audio_update(void)

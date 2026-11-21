@@ -15,8 +15,8 @@ void screen_screen_1_update(f64 dt)
         {
             Projectile* proj = projectile_create(randf_range(0.0f, RESOLUTION_X), RESOLUTION_Y, 20.0f, 20.0f);
             proj->velocity = vec2_create(0.0f, -200.0f);
-            flag_set(&proj->flags, FLAG_EXPIRE);
-            flag_set(&proj->flags, FLAG_COLLIDE_DELETE);
+            flag_set(&proj->flags, PROJ_FLAG_EXPIRE);
+            flag_set(&proj->flags, PROJ_FLAG_COLLIDE_DELETE);
             proj->expire_time = global_ctx.time + 5.0f;
             if (rand() % 2)
             {
@@ -24,7 +24,7 @@ void screen_screen_1_update(f64 dt)
             }
             else
             {
-                flag_set(&proj->flags, FLAG_RECT_HITBOX);
+                flag_set(&proj->flags, PROJ_FLAG_RECT_HITBOX);
                 animation_init(&proj->animation, ANIMATION_SOLID_COLOR);
                 proj->rotation = randf() * PI;
                 proj->size = vec2_create(10.0f, 100.0f);

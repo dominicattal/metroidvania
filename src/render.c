@@ -9,6 +9,8 @@
 #define UBO_INDEX_WINDOW 1
 #define TEXTURE_WIDTH 1024
 #define TEXTURE_SIZE (TEXTURE_WIDTH * TEXTURE_WIDTH)
+#define SPRITE_TEXTURE_WIDTH 4096
+#define SPRITE_TEXTURE_SIZE (SPRITE_TEXTURE_WIDTH * SPRITE_TEXTURE_WIDTH)
 #define GLYPH_START 32
 #define GLYPH_END 127
 #define NUM_GLYPHS (GLYPH_END - GLYPH_START + 1)
@@ -119,7 +121,7 @@ static uint8_t outline_font_data[] =
 #embed "../assets/fonts/lack/Lack-Line-Regular.otf"
 };
 
-static u8 buffer[TEXTURE_SIZE];
+static u8 buffer[SPRITE_TEXTURE_SIZE];
 
 static u32 compile(GLenum type, const char* shader_code)
 {
@@ -429,6 +431,7 @@ static void create_framebuffer(void)
 
 void animation_init(Animation* animation, AnimationType type)
 {
+    animation->color = WHITE;
     animation->type = type;
     animation->duration = 0;
     animation->frame = 0;
@@ -576,6 +579,8 @@ static void create_sprite_textures(void)
 
     animation_configs[ANIMATION_SOUL] = json_read("assets/sprites/soul.json");
     animation_configs[ANIMATION_EXPLOSION] = json_read("assets/sprites/explosion.json");
+    animation_configs[ANIMATION_WASD] = json_read("assets/sprites/wasd.json");
+    animation_configs[ANIMATION_E] = json_read("assets/sprites/e.json");
 
     for (i32 anim = 0; anim < NUM_ANIMATIONS; anim++)
     {
@@ -621,8 +626,6 @@ static void create_sprite_textures(void)
 
 void render_init(void)
 {
-    global_ctx.draw_entities = true;
-
     for (i32 i = 0; i < NUM_PROGRAMS; i++)
         render_ctx.programs[i] = glCreateProgram();
 
@@ -840,7 +843,7 @@ static GLfloat* add_projectile_to_buffer(GLfloat* buffer, Projectile* proj)
                 .size      = proj->size,
                 .uv_offset = uv_offset,
                 .uv_size   = uv_size,
-                .color     = (Color){1.0f, 1.0f, 1.0f, 1.0f},
+                .color     = proj->animation.color,
                 .rotation  = fmod(proj->rotation, 2 * PI)
             });
 }
@@ -854,7 +857,7 @@ static GLfloat* add_entity_to_buffer(GLfloat* buffer, Entity* entity)
                 .size      = entity->size,
                 .uv_offset = uv_offset,
                 .uv_size   = uv_size,
-                .color     = (Color){1.0f, 1.0f, 1.0f, 1.0f},
+                .color     = entity->animation.color,
                 .rotation  = fmod(entity->rotation, 2 * PI)
             });
 }
@@ -868,7 +871,7 @@ static GLfloat* add_animated_rect_to_buffer(GLfloat* buffer, AnimatedRect* rect)
                 .size      = rect->size,
                 .uv_offset = uv_offset,
                 .uv_size   = uv_size,
-                .color     = (Color){1.0f, 1.0f, 1.0f, 1.0f},
+                .color     = rect->animation.color,
                 .rotation  = 0.0f
             });
 }
@@ -951,7 +954,7 @@ void render_game_object_hitboxes(void)
     for (i32 i = 0; i < arena->size; i++)
     {
         Projectile* proj = arena_at(arena, i);
-        if (flag_test(&proj->flags, FLAG_RECT_HITBOX))
+        if (flag_test(&proj->flags, PROJ_FLAG_RECT_HITBOX))
         {
             rect_buffer = add_rect_to_buffer(rect_buffer, (RectVertex) {
                         .position  = proj->position,
@@ -1028,8 +1031,7 @@ void render()
     glClear(GL_COLOR_BUFFER_BIT);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
-    if (global_ctx.draw_entities)
-        render_game_objects();
+    render_game_objects();
     if (global_ctx.draw_hitboxes)
         render_game_object_hitboxes();
 
