@@ -3,6 +3,7 @@
 
 void screen_load(Screen screen)
 {
+    arena_clear(&global_ctx.beam_arena);
     arena_clear(&global_ctx.animated_rect_arena);
     arena_clear(&global_ctx.entity_arena);
     arena_clear(&global_ctx.projectile_arena);

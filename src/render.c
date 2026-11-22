@@ -581,6 +581,7 @@ static void create_sprite_textures(void)
     animation_configs[ANIMATION_EXPLOSION] = json_read("assets/sprites/explosion.json");
     animation_configs[ANIMATION_WASD] = json_read("assets/sprites/wasd.json");
     animation_configs[ANIMATION_E] = json_read("assets/sprites/e.json");
+    animation_configs[ANIMATION_CROSS] = json_read("assets/sprites/cross.json");
 
     for (i32 anim = 0; anim < NUM_ANIMATIONS; anim++)
     {
@@ -862,6 +863,20 @@ static GLfloat* add_entity_to_buffer(GLfloat* buffer, Entity* entity)
             });
 }
 
+static GLfloat* add_beam_to_buffer(GLfloat* buffer, Beam* beam)
+{
+    vec2 uv_offset, uv_size;
+    get_animation_uv(&beam->animation, &uv_offset, &uv_size);
+    return add_rect_to_buffer(buffer, (RectVertex) {
+                .position  = vec2_add(beam->position, vec2_scale(vec2_direction(beam->rotation), beam->size.x / 2.0)),
+                .size      = beam->size,
+                .uv_offset = uv_offset,
+                .uv_size   = uv_size,
+                .color     = beam->animation.color,
+                .rotation  = fmod(beam->rotation, 2 * PI)
+            });
+}
+
 static GLfloat* add_animated_rect_to_buffer(GLfloat* buffer, AnimatedRect* rect)
 {
     vec2 uv_offset, uv_size;
@@ -900,6 +915,10 @@ void render_game_objects(void)
     arena = &global_ctx.animated_rect_arena;
     for (i32 i = 0; i < arena->size; i++)
         buffer = add_animated_rect_to_buffer(buffer, arena_at(arena, i));
+
+    arena = &global_ctx.beam_arena;
+    for (i32 i = 0; i < arena->size; i++)
+        buffer = add_beam_to_buffer(buffer, arena_at(arena, i));
 
     arena = &global_ctx.projectile_arena;
     for (i32 i = 0; i < arena->size; i++)
@@ -972,6 +991,20 @@ void render_game_object_hitboxes(void)
                         .radius   = proj->hitbox_radius
                     });
         }
+    }
+
+    arena = &global_ctx.beam_arena;
+    for (i32 i = 0; i < arena->size; i++)
+    {
+        Beam* beam = arena_at(arena, i);
+        rect_buffer = add_rect_to_buffer(rect_buffer, (RectVertex) {
+                .position  = vec2_add(beam->position, vec2_scale(vec2_direction(beam->rotation), beam->hitbox_size.x / 2.0)),
+                .size      = beam->hitbox_size,
+                .uv_offset = vec2_create(render_ctx.solid_color.u, render_ctx.solid_color.v),
+                .uv_size   = vec2_create(render_ctx.solid_color.w, render_ctx.solid_color.h),
+                .color     = (Color){1.0f, 0.0f, 0.0f, 1.0f},
+                .rotation  = fmod(beam->rotation, 2 * PI)
+            });
     }
 
     arena = &global_ctx.entity_arena;

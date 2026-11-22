@@ -4,6 +4,12 @@
 #include <stdint.h>
 
 #define PI 3.1415926535
+#define EPSILON 1e-5
+
+#define DOWN  0
+#define LEFT  1
+#define UP    2
+#define RIGHT 3
 
 typedef uint8_t   u8;
 typedef int32_t   i32;

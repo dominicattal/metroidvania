@@ -11,9 +11,12 @@
 #define RESOLUTION_Y 1080
 #define MAX_NUM_PROJECTILES 10000
 #define MAX_NUM_WALLS 100
+#define MAX_NUM_BEAMS 100
 #define MAX_NUM_ENTITIES 100
 #define MAX_NUM_ANIMATED_RECTS 100
 #define MAX_TIMED_TEXTS 20
+
+#define MAX_PROJECTILE_DATA_SIZE 128
 
 #define BLANK (Color){0.0f, 0.0f, 0.0f, 0.0f}
 #define WHITE (Color){1.0f, 1.0f, 1.0f, 1.0f}
@@ -21,12 +24,16 @@
 #define BLUE (Color){0.0f, 0.0f, 1.0f, 1.0f}
 
 // add 1 for the player
-#define MAX_NUM_RECTS (MAX_NUM_PROJECTILES + MAX_NUM_ANIMATED_RECTS + MAX_NUM_ENTITIES + MAX_NUM_WALLS + 1)
+#define MAX_NUM_RECTS (MAX_NUM_PROJECTILES + MAX_NUM_BEAMS + MAX_NUM_ANIMATED_RECTS + MAX_NUM_ENTITIES + MAX_NUM_WALLS + 1)
 
 typedef struct TimedText TimedText;
+typedef struct Projectile Projectile;
+typedef struct Beam Beam;
 
 typedef void (*ScreenUpdateCallback)(f64);
 typedef void (*TimedTextEndCallback)(TimedText*);
+typedef void (*ProjectileUpdateCallback)(Projectile*, f64);
+typedef void (*BeamUpdateCallback)(Beam*, f64);
 
 typedef enum {
     SOUND_TEST,
@@ -55,6 +62,7 @@ typedef enum {
     ANIMATION_EXPLOSION,
     ANIMATION_WASD,
     ANIMATION_E,
+    ANIMATION_CROSS,
     NUM_ANIMATIONS,
     ANIMATION_SOLID_COLOR
 } AnimationType;
@@ -64,13 +72,26 @@ typedef enum {
 } AnimatedRectFlag;
 
 typedef enum {
+    TIMED_TEXT_FLAG_FADE_OUT    = 1 << 0, // Whether the timed text should fdae out
+} TimedTextFlag;
+
+typedef enum {
     PROJ_FLAG_RECT_HITBOX       = 1 << 0, // Whether proj uses rectanglular hitbox or radius hitbox
-    PROJ_FLAG_EXPIRE            = 1 << 1, // Wheter proj use expire_time or not
+    PROJ_FLAG_EXPIRE            = 1 << 1, // Whether proj uses expire_time
     PROJ_FLAG_DELETE            = 1 << 2, // Whether proj should be deleted next frame
     PROJ_FLAG_COLLIDE_DELETE    = 1 << 3, // Whether proj should be deleted after collision
     PROJ_FLAG_EXPLOSION_DELETE  = 1 << 4, // Whether proj should be be deleted after player explosion
     PROJ_FLAG_GRAZED            = 1 << 5, // Whether a projectile has been grazed
+
+    // Generic flags that have context-defined meaning
+    PROJ_FLAG_GENERIC_1         = 1 << 31
 } ProjectileFlag;
+
+typedef enum {
+    BEAM_FLAG_DELETE            = 1 << 0, // Whether beam should be deleted next frame
+    BEAM_FLAG_COLLIDE_DELETE    = 1 << 1, // Whether beam should be deleted after collision
+    BEAM_FLAG_COLLIDE           = 1 << 2, // Whether beam should check collision with player
+} BeamFlag;
 
 typedef enum {
     PLAYER_FLAG_CAN_MOVE        = 1 << 0, // Whether player can move
@@ -135,6 +156,7 @@ typedef struct TimedText {
     Sound sound;
     Color color;
     Font font;
+    u32 flags;
     f32 x, y, scale;
 } TimedText;
 
@@ -157,9 +179,21 @@ typedef struct {
     f64 hitbox_radius;
 } Entity;
 
-typedef struct {
+typedef struct Beam {
+    Animation animation;
+    BeamUpdateCallback update_callback;
+    vec2 position;
+    vec2 size;
+    vec2 hitbox_size;
+    f64 rotation;
+    f64 expire_time;
+    u32 flags;
+} Beam;
+
+typedef struct Projectile {
     Animation animation;
     // Entities are drawn with position at their center
+    ProjectileUpdateCallback update_callback;
     vec2 position;
     vec2 velocity;
     vec2 size;
@@ -195,9 +229,12 @@ typedef struct {
 
     Arena animated_rect_arena;
     Arena wall_arena;
+    Arena beam_arena;
     Arena entity_arena;
     Arena projectile_arena;
     Arena timed_text_arena;
+
+    void* projectile_data;
 
     Player player;
 
@@ -257,6 +294,9 @@ void toggle_camera_lock(void);
 Entity* entity_create(f64 x, f64 y, f64 w, f64 h);
 AnimatedRect* animated_rect_create(AnimationType type, f64 x, f64 y, f64 w, f64 h);
 Projectile* projectile_create(f64 x, f64 y, f64 w, f64 h);
+Beam* beam_create(f64 x, f64 y, f64 w, f64 h, f64 rot);
+void* projectile_data(Projectile* proj);
+Projectile* projectile_dup(Projectile* proj);
 Wall* wall_create(f64 x, f64 y, f64 w, f64 h);
 
 bool flag_test(u32* flags, u32 flag);
