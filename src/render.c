@@ -582,6 +582,7 @@ static void create_sprite_textures(void)
     animation_configs[ANIMATION_WASD] = json_read("assets/sprites/wasd.json");
     animation_configs[ANIMATION_E] = json_read("assets/sprites/e.json");
     animation_configs[ANIMATION_CROSS] = json_read("assets/sprites/cross.json");
+    animation_configs[ANIMATION_CROSS_1_BULLET] = json_read("assets/sprites/cross_1_bullet.json");
 
     for (i32 anim = 0; anim < NUM_ANIMATIONS; anim++)
     {
@@ -916,6 +917,10 @@ void render_game_objects(void)
     for (i32 i = 0; i < arena->size; i++)
         buffer = add_animated_rect_to_buffer(buffer, arena_at(arena, i));
 
+    arena = &global_ctx.entity_arena;
+    for (i32 i = 0; i < arena->size; i++)
+        buffer = add_entity_to_buffer(buffer, arena_at(arena, i));
+
     arena = &global_ctx.beam_arena;
     for (i32 i = 0; i < arena->size; i++)
         buffer = add_beam_to_buffer(buffer, arena_at(arena, i));
@@ -923,10 +928,6 @@ void render_game_objects(void)
     arena = &global_ctx.projectile_arena;
     for (i32 i = 0; i < arena->size; i++)
         buffer = add_projectile_to_buffer(buffer, arena_at(arena, i));
-
-    arena = &global_ctx.entity_arena;
-    for (i32 i = 0; i < arena->size; i++)
-        buffer = add_entity_to_buffer(buffer, arena_at(arena, i));
 
     i32 num_entities = (buffer - render_ctx.rect_vertex_buffer) / RECT_VERTEX_LENGTH;
     glUseProgram(render_ctx.programs[PROGRAM_RECT]);

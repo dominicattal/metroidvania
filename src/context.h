@@ -17,10 +17,12 @@
 #define MAX_TIMED_TEXTS 20
 
 #define MAX_PROJECTILE_DATA_SIZE 128
+#define MAX_BEAM_DATA_SIZE 64
 
 #define BLANK (Color){0.0f, 0.0f, 0.0f, 0.0f}
 #define WHITE (Color){1.0f, 1.0f, 1.0f, 1.0f}
 #define RED (Color){1.0f, 0.0f, 0.0f, 1.0f}
+#define GREEN (Color){0.0f, 1.0f, 0.0f, 1.0f}
 #define BLUE (Color){0.0f, 0.0f, 1.0f, 1.0f}
 
 // add 1 for the player
@@ -63,6 +65,7 @@ typedef enum {
     ANIMATION_WASD,
     ANIMATION_E,
     ANIMATION_CROSS,
+    ANIMATION_CROSS_1_BULLET,
     NUM_ANIMATIONS,
     ANIMATION_SOLID_COLOR
 } AnimationType;
@@ -186,6 +189,7 @@ typedef struct Beam {
     vec2 size;
     vec2 hitbox_size;
     f64 rotation;
+    f64 start_time;
     f64 expire_time;
     u32 flags;
 } Beam;
@@ -235,6 +239,7 @@ typedef struct {
     Arena timed_text_arena;
 
     void* projectile_data;
+    void* beam_data;
 
     Player player;
 
@@ -294,9 +299,11 @@ void toggle_camera_lock(void);
 Entity* entity_create(f64 x, f64 y, f64 w, f64 h);
 AnimatedRect* animated_rect_create(AnimationType type, f64 x, f64 y, f64 w, f64 h);
 Projectile* projectile_create(f64 x, f64 y, f64 w, f64 h);
-Beam* beam_create(f64 x, f64 y, f64 w, f64 h, f64 rot);
-void* projectile_data(Projectile* proj);
 Projectile* projectile_dup(Projectile* proj);
+void* projectile_data(Projectile* proj);
+Beam* beam_create(f64 x, f64 y, f64 w, f64 h, f64 rot);
+Beam* beam_dup(Beam* deam);
+void* beam_data(Beam* beam);
 Wall* wall_create(f64 x, f64 y, f64 w, f64 h);
 
 bool flag_test(u32* flags, u32 flag);

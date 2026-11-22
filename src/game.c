@@ -122,6 +122,7 @@ Projectile* projectile_create(f64 x, f64 y, f64 w, f64 h)
     proj->size.x = w;
     proj->size.y = h;
     flag_set(&proj->flags, PROJ_FLAG_EXPLOSION_DELETE);
+    flag_set(&proj->flags, PROJ_FLAG_EXPIRE);
     return proj;
 }
 
@@ -129,7 +130,6 @@ Beam* beam_create(f64 x, f64 y, f64 w, f64 h, f64 rot)
 {
     Beam* beam = arena_deref(&global_ctx.beam_arena, arena_alloc(&global_ctx.beam_arena));
     animation_init(&beam->animation, ANIMATION_SOLID_COLOR);
-    flag_set(&beam->flags, BEAM_FLAG_COLLIDE);
     beam->position.x = x;
     beam->position.y = y;
     beam->size.x = w;
@@ -146,6 +146,13 @@ void* projectile_data(Projectile* proj)
         ((u8*)proj - (u8*)arena->instances) / arena->instance_size * MAX_PROJECTILE_DATA_SIZE;
 }
 
+void* beam_data(Beam* beam)
+{
+    Arena* arena = &global_ctx.beam_arena;
+    return (u8*)global_ctx.beam_data + 
+        ((u8*)beam - (u8*)arena->instances) / arena->instance_size * MAX_BEAM_DATA_SIZE;
+}
+
 Projectile* projectile_dup(Projectile* proj)
 {
     Projectile* copy = arena_deref(&global_ctx.projectile_arena, arena_alloc(&global_ctx.projectile_arena));
@@ -153,10 +160,24 @@ Projectile* projectile_dup(Projectile* proj)
     return copy;
 }
 
+Beam* beam_dup(Beam* beam)
+{
+    Beam* copy = arena_deref(&global_ctx.beam_arena, arena_alloc(&global_ctx.beam_arena));
+    memcpy(copy, beam, sizeof(Beam));
+    return copy;
+}
+
 void game_init(void)
 {
     keybinds_init();
-    global_ctx.projectile_data = malloc((MAX_NUM_PROJECTILES + 1) * MAX_PROJECTILE_DATA_SIZE);
+
+    size_t proj_data_size = (MAX_NUM_PROJECTILES + 1) * MAX_PROJECTILE_DATA_SIZE;
+    size_t beam_data_size = (MAX_NUM_BEAMS + 1) * MAX_BEAM_DATA_SIZE;
+    u8* data = malloc(proj_data_size + beam_data_size);
+
+    global_ctx.projectile_data = data;
+    global_ctx.beam_data = data + proj_data_size;
+
     arena_init(&global_ctx.animated_rect_arena, sizeof(AnimatedRect), MAX_NUM_ANIMATED_RECTS);
     arena_init(&global_ctx.entity_arena, sizeof(Entity), MAX_NUM_ENTITIES);
     arena_init(&global_ctx.beam_arena, sizeof(Beam), MAX_NUM_BEAMS);
@@ -286,7 +307,7 @@ static void collide_game_objects(void)
     for (i32 i = 0; i < arena->size; i++)
     {
         Beam* beam = arena_at(arena, i);
-        if (flag_test(&beam->flags, BEAM_FLAG_COLLIDE) && collide_entity_beam(player_entity, beam))
+        if (flag_test(&beam->flags, BEAM_FLAG_COLLIDE) && global_ctx.time < beam->start_time && collide_entity_beam(player_entity, beam))
         {
         }
     }
